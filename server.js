@@ -1,5 +1,6 @@
 const express = require("express");
-const ical = require("ical-generator");
+const icalLib = require("ical-generator");
+const ical = icalLib.default || icalLib;
 const fixtures = require("./fixtures");
 
 const app = express();
@@ -11,7 +12,7 @@ app.get("/", (req, res) => {
 });
 
 app.get("/calendar.ics", (req, res) => {
-  const calendar = ical.default({
+  const calendar = ical({
     name: "Sports Fixtures",
     description: "Live fixture schedule — reschedules propagate automatically",
     // RFC 5545 requires a PRODID

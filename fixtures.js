@@ -14,12 +14,12 @@ const fixtures = [
   },
   {
     uid: "fixture-002@calendar.fixture-app.com",
-    sequence: 0,
+    sequence: 1,
     summary: "Eagles SC vs Rovers United",
     location: "Falcon Park, London",
-    description: "Premier League — Matchday 12",
-    start: new Date("2026-06-07T17:30:00Z"),
-    end:   new Date("2026-06-07T19:30:00Z"),
+    description: "Premier League — Matchday 12 (RESCHEDULED)",
+    start: new Date("2026-06-10T17:30:00Z"),
+    end:   new Date("2026-06-10T19:30:00Z"),
   },
   {
     uid: "fixture-003@calendar.fixture-app.com",

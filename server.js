@@ -1,3 +1,8 @@
+// Polyfill crypto for older Node versions (Railway default is Node 16/18)
+if (!globalThis.crypto) {
+  globalThis.crypto = require("crypto").webcrypto;
+}
+
 const express = require("express");
 const icalLib = require("ical-generator");
 const ical = icalLib.default || icalLib;

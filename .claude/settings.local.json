@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node server.js)",
+      "Bash(curl -s http://localhost:3000/calendar.ics)",
+      "Bash(node -e \"const ical = require\\('ical-generator'\\); console.log\\(Object.keys\\(ical\\)\\); const cal = ical.default\\({name:'test'}\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(cal\\)\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(taskkill //F //IM node.exe)"
+    ]
+  }
+}

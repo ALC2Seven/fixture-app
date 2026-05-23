@@ -5,12 +5,12 @@
 const fixtures = [
   {
     uid: "fixture-001@calendar.fixture-app.com",
-    sequence: 0,
+    sequence: 1,
     summary: "City FC vs United AFC",
     location: "Riverside Stadium, Manchester",
-    description: "Premier League — Matchday 12",
-    start: new Date("2026-06-07T15:00:00Z"),
-    end:   new Date("2026-06-07T17:00:00Z"),
+    description: "Premier League — Matchday 12 (RESCHEDULED)",
+    start: new Date("2026-06-09T15:00:00Z"),
+    end:   new Date("2026-06-09T17:00:00Z"),
   },
   {
     uid: "fixture-002@calendar.fixture-app.com",

@@ -8,7 +8,8 @@
       "Bash(node -e \"const ical = require\\('ical-generator'\\); console.log\\(Object.keys\\(ical\\)\\); const cal = ical.default\\({name:'test'}\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(cal\\)\\)\\)\")",
       "Bash(node -e ' *)",
       "Bash(taskkill //F //IM node.exe)",
-      "WebFetch(domain:fixture-app-production.up.railway.app)"
+      "WebFetch(domain:fixture-app-production.up.railway.app)",
+      "Bash(curl -s -X POST https://fixture-app-production.up.railway.app/admin/reschedule -H 'Content-Type: application/json' -H 'x-admin-key: fixtures-admin-2026' -d '{ *)"
     ]
   }
 }

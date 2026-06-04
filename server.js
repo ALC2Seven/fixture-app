@@ -308,6 +308,36 @@ app.post("/admin/teams/:slug/tier", requireMasterKey, async (req, res) => {
   res.json({ success: true, team: rows[0] });
 });
 
+// Create a user account (master key required)
+app.post("/admin/users", requireMasterKey, async (req, res) => {
+  const { email, password, passwordHash, role, teamSlug } = req.body;
+  if (!email) return res.status(400).json({ error: "email is required" });
+
+  let hash = passwordHash;
+  if (!hash) {
+    if (!password) return res.status(400).json({ error: "password or passwordHash is required" });
+    hash = await bcrypt.hash(password, 10);
+  }
+
+  let teamId = null;
+  if (teamSlug) {
+    const { rows } = await pool.query("SELECT id FROM teams WHERE slug = $1", [teamSlug]);
+    if (!rows.length) return res.status(404).json({ error: "Team not found" });
+    teamId = rows[0].id;
+  }
+
+  try {
+    const { rows } = await pool.query(
+      "INSERT INTO users (email, password_hash, team_id, role) VALUES ($1,$2,$3,$4) RETURNING id, email, role",
+      [email.toLowerCase(), hash, teamId, role || "admin"]
+    );
+    res.json({ success: true, user: rows[0] });
+  } catch(e) {
+    if (e.code === "23505") return res.status(409).json({ error: "Email already exists" });
+    throw e;
+  }
+});
+
 // --- Dashboard routes ---
 
 function requireLogin(req, res, next) {

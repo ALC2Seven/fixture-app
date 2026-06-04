@@ -175,6 +175,29 @@ app.post("/admin/:slug/fixtures", requireTeamKey, async (req, res) => {
   res.json({ success: true, fixture: rows[0] });
 });
 
+// Update fixture details (home/away teams, location, description)
+app.post("/admin/:slug/fixtures/:id/update", requireTeamKey, async (req, res) => {
+  const { id } = req.params;
+  const { homeTeam, awayTeam, isHome, location, description } = req.body;
+
+  const { rows } = await pool.query(
+    `UPDATE fixtures
+     SET home_team  = COALESCE($1, home_team),
+         away_team  = COALESCE($2, away_team),
+         is_home    = COALESCE($3, is_home),
+         location   = COALESCE($4, location),
+         description = COALESCE($5, description),
+         summary    = CASE WHEN $1 IS NOT NULL AND $2 IS NOT NULL THEN $1 || ' vs ' || $2 ELSE summary END,
+         updated_at = NOW()
+     WHERE id = $6 AND team_id = $7
+     RETURNING *`,
+    [homeTeam || null, awayTeam || null, isHome !== undefined ? isHome : null, location || null, description || null, id, req.team.id]
+  );
+
+  if (!rows.length) return res.status(404).json({ error: "Fixture not found" });
+  res.json({ success: true, fixture: rows[0] });
+});
+
 // Reschedule a fixture + email subscribers
 app.post("/admin/:slug/reschedule", requireTeamKey, async (req, res) => {
   const { uid, newStart, newEnd, reason } = req.body;

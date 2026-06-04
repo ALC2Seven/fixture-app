@@ -112,8 +112,9 @@ app.get("/", (req, res) => {
 app.get("/:slug", async (req, res) => {
   const { slug } = req.params;
 
-  // Don't intercept API or calendar routes
-  if (slug.startsWith("admin") || slug.startsWith("calendar")) return res.status(404).send("Not found");
+  // Don't intercept reserved routes
+  const reserved = ["admin", "calendar", "dashboard"];
+  if (reserved.some(r => slug.startsWith(r))) return res.status(404).send("Not found");
 
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
   if (!teams.length) return res.status(404).send("Team not found");

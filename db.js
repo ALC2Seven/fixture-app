@@ -50,6 +50,18 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS is_home   BOOLEAN DEFAULT true;
   `);
 
+  // Users table for dashboard login
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            SERIAL PRIMARY KEY,
+      email         VARCHAR(200) UNIQUE NOT NULL,
+      password_hash VARCHAR(200) NOT NULL,
+      team_id       INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      role          VARCHAR(20) DEFAULT 'admin',
+      created_at    TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
   console.log("Database ready");
 }
 

@@ -7,17 +7,32 @@ const express = require("express");
 const icalLib = require("ical-generator");
 const ical = icalLib.default || icalLib;
 const { Resend } = require("resend");
+const bcrypt = require("bcrypt");
+const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
 const { pool, initDb } = require("./db");
 const { teamPage } = require("./views/team");
+const { loginPage } = require("./views/dashboard/login");
+const { homePage } = require("./views/dashboard/home");
+const { masterPage } = require("./views/dashboard/master");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Master admin key — used only for onboarding new teams
+// Master admin key — used only for onboarding new teams via API
 const MASTER_KEY = process.env.MASTER_KEY || "master-changeme";
+const SESSION_SECRET = process.env.SESSION_SECRET || "changeme-session-secret";
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(session({
+  store: new pgSession({ pool, createTableIfMissing: true }),
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days
+}));
 
 // --- Middleware ---
 
@@ -291,6 +306,202 @@ app.post("/admin/teams/:slug/tier", requireMasterKey, async (req, res) => {
   );
   if (!rows.length) return res.status(404).json({ error: "Team not found" });
   res.json({ success: true, team: rows[0] });
+});
+
+// --- Dashboard routes ---
+
+function requireLogin(req, res, next) {
+  if (!req.session.userId) return res.redirect("/dashboard/login");
+  next();
+}
+
+async function loadSessionUser(req, res, next) {
+  if (req.session.userId) {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.userId]);
+    if (rows.length) req.user = rows[0];
+  }
+  next();
+}
+
+app.use(loadSessionUser);
+
+// Login page
+app.get("/dashboard/login", (req, res) => {
+  if (req.user) return res.redirect("/dashboard");
+  res.send(loginPage());
+});
+
+app.post("/dashboard/login", async (req, res) => {
+  const { email, password } = req.body;
+  const { rows } = await pool.query("SELECT * FROM users WHERE email = $1", [email.toLowerCase()]);
+  if (!rows.length) return res.send(loginPage("Invalid email or password"));
+
+  const valid = await bcrypt.compare(password, rows[0].password_hash);
+  if (!valid) return res.send(loginPage("Invalid email or password"));
+
+  req.session.userId = rows[0].id;
+  res.redirect("/dashboard");
+});
+
+app.get("/dashboard/logout", (req, res) => {
+  req.session.destroy(() => res.redirect("/dashboard/login"));
+});
+
+// Main dashboard — fixtures
+app.get("/dashboard", requireLogin, async (req, res) => {
+  const teamId = req.user.role === "master" ? req.query.teamId : req.user.team_id;
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [teamId || req.user.team_id]);
+  const team = teams[0];
+  if (!team) return res.redirect("/dashboard/master");
+
+  const { rows: fixtures } = await pool.query(
+    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC", [team.id]
+  );
+  const { rows: subscribers } = await pool.query(
+    "SELECT * FROM subscribers WHERE team_id = $1", [team.id]
+  );
+
+  const flash = req.session.flash;
+  delete req.session.flash;
+  res.send(homePage(req.user, team, fixtures, subscribers, flash));
+});
+
+// Add fixture via dashboard
+app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
+  const { homeTeam, awayTeam, isHome, start, end, location, description } = req.body;
+  const teamId = req.user.team_id;
+  const team = (await pool.query("SELECT * FROM teams WHERE id = $1", [teamId])).rows[0];
+
+  const uid = `${team.slug}-${Date.now()}@calendar.fixture-app.com`;
+  const summary = `${homeTeam} vs ${awayTeam}`;
+
+  await pool.query(
+    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true"]
+  );
+
+  req.session.flash = { type: "success", msg: `Fixture added: ${summary}` };
+  res.redirect("/dashboard");
+});
+
+// Reschedule fixture via dashboard
+app.post("/dashboard/fixtures/reschedule", requireLogin, async (req, res) => {
+  const { uid, newStart, newEnd, reason } = req.body;
+  const teamId = req.user.team_id;
+  const team = (await pool.query("SELECT * FROM teams WHERE id = $1", [teamId])).rows[0];
+
+  const { rows: existing } = await pool.query(
+    "SELECT * FROM fixtures WHERE uid = $1 AND team_id = $2", [uid, teamId]
+  );
+  if (!existing.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+
+  const oldStart = existing[0].start_time;
+
+  const { rows: updated } = await pool.query(
+    `UPDATE fixtures SET start_time=$1, end_time=$2, sequence=sequence+1,
+     description=CASE WHEN description NOT LIKE '%(RESCHEDULED)%' THEN description||' (RESCHEDULED)' ELSE description END,
+     updated_at=NOW() WHERE uid=$3 AND team_id=$4 RETURNING *`,
+    [newStart, newEnd, uid, teamId]
+  );
+
+  await sendRescheduleEmails(team, { ...updated[0], reason }, oldStart);
+  req.session.flash = { type: "success", msg: `Fixture rescheduled. Subscribers notified.` };
+  res.redirect("/dashboard");
+});
+
+// Subscribers page
+app.get("/dashboard/subscribers", requireLogin, async (req, res) => {
+  const { rows: subs } = await pool.query(
+    "SELECT * FROM subscribers WHERE team_id = $1 ORDER BY created_at DESC", [req.user.team_id]
+  );
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const flash = req.session.flash; delete req.session.flash;
+
+  const content = `
+    ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
+    <div class="page-header"><h1>Subscribers</h1><p>People receiving email notifications for your fixtures.</p></div>
+    <div class="card">
+      <div class="card-title">Add Subscriber</div>
+      <form method="POST" action="/dashboard/subscribers/add" style="display:flex;gap:10px;align-items:flex-end">
+        <div class="form-group" style="flex:1"><label>Email</label><input type="email" name="email" required placeholder="fan@example.com"></div>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-title">Subscribers (${subs.length})</div>
+      ${subs.length ? `<table><thead><tr><th>Email</th><th>Joined</th><th></th></tr></thead><tbody>
+        ${subs.map(s => `<tr><td>${s.email}</td><td style="color:#555">${new Date(s.created_at).toLocaleDateString("en-GB")}</td>
+          <td><form method="POST" action="/dashboard/subscribers/remove"><input type="hidden" name="email" value="${s.email}">
+          <button class="btn btn-secondary btn-sm">Remove</button></form></td></tr>`).join("")}
+      </tbody></table>` : `<p style="color:#555;font-size:0.85rem">No subscribers yet.</p>`}
+    </div>
+  `;
+  const { layout } = require("./views/dashboard/layout");
+  res.send(layout("Subscribers", content, req.user));
+});
+
+app.post("/dashboard/subscribers/add", requireLogin, async (req, res) => {
+  const { email } = req.body;
+  try {
+    await pool.query("INSERT INTO subscribers (team_id, email) VALUES ($1,$2)", [req.user.team_id, email]);
+    req.session.flash = { type: "success", msg: `${email} added.` };
+  } catch(e) {
+    req.session.flash = { type: "error", msg: "Already subscribed." };
+  }
+  res.redirect("/dashboard/subscribers");
+});
+
+app.post("/dashboard/subscribers/remove", requireLogin, async (req, res) => {
+  await pool.query("DELETE FROM subscribers WHERE team_id=$1 AND email=$2", [req.user.team_id, req.body.email]);
+  req.session.flash = { type: "success", msg: "Subscriber removed." };
+  res.redirect("/dashboard/subscribers");
+});
+
+// Calendar feed info page
+app.get("/dashboard/feed", requireLogin, async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const team = teams[0];
+  const feedUrl = `https://${req.headers.host}/calendar/${team.slug}.ics`;
+  const webcalUrl = feedUrl.replace("https://", "webcal://");
+  const { layout } = require("./views/dashboard/layout");
+  const content = `
+    <div class="page-header"><h1>Calendar Feed</h1><p>Share these links with your fans.</p></div>
+    <div class="card">
+      <div class="card-title">Your Public Page</div>
+      <p style="color:#aaa;font-size:0.85rem;margin-bottom:10px">Share this link with fans to see your fixtures.</p>
+      <a href="/${team.slug}" target="_blank" class="btn btn-secondary">View Page →</a>
+    </div>
+    <div class="card">
+      <div class="card-title">Calendar Subscription URL</div>
+      <p style="color:#aaa;font-size:0.85rem;margin-bottom:10px">Fans paste this into Google Calendar, Outlook etc.</p>
+      <code style="background:#111;padding:10px 14px;display:block;color:#cc0000;font-size:0.85rem;word-break:break-all;margin-bottom:10px">${feedUrl}</code>
+      <a href="${webcalUrl}" class="btn btn-primary">📅 Subscribe (Apple/Outlook)</a>
+    </div>
+  `;
+  res.send(layout("Calendar Feed", content, req.user));
+});
+
+// Master dashboard
+app.get("/dashboard/master", requireLogin, async (req, res) => {
+  if (req.user.role !== "master") return res.redirect("/dashboard");
+  const { rows: teams } = await pool.query(`
+    SELECT t.*,
+      COUNT(DISTINCT f.id) AS fixture_count,
+      COUNT(DISTINCT s.id) AS subscriber_count
+    FROM teams t
+    LEFT JOIN fixtures f ON f.team_id = t.id
+    LEFT JOIN subscribers s ON s.team_id = t.id
+    GROUP BY t.id ORDER BY t.created_at DESC
+  `);
+  res.send(masterPage(req.user, teams));
+});
+
+app.post("/dashboard/master/tier", requireLogin, async (req, res) => {
+  if (req.user.role !== "master") return res.redirect("/dashboard");
+  const { slug, tier } = req.body;
+  await pool.query("UPDATE teams SET tier=$1 WHERE slug=$2", [tier, slug]);
+  res.redirect("/dashboard/master");
 });
 
 // --- Start ---

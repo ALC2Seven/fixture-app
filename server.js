@@ -108,30 +108,6 @@ app.get("/", (req, res) => {
   res.send("Fixture calendar service is running.");
 });
 
-// Team public webpage
-app.get("/:slug", async (req, res) => {
-  const { slug } = req.params;
-
-  // Don't intercept reserved routes
-  const reserved = ["admin", "calendar", "dashboard"];
-  if (reserved.some(r => slug.startsWith(r))) return res.status(404).send("Not found");
-
-  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
-  if (!teams.length) return res.status(404).send("Team not found");
-
-  const team = teams[0];
-  const { rows: fixtures } = await pool.query(
-    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC",
-    [team.id]
-  );
-
-  const host = req.headers.host;
-  const calendarUrl = `https://${host}/calendar/${slug}.ics`;
-
-  res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl));
-});
-
 // --- Calendar feed (public) ---
 
 app.get("/calendar/:slug.ics", async (req, res) => {
@@ -536,6 +512,26 @@ app.post("/dashboard/master/tier", requireLogin, async (req, res) => {
   const { slug, tier } = req.body;
   await pool.query("UPDATE teams SET tier=$1 WHERE slug=$2", [tier, slug]);
   res.redirect("/dashboard/master");
+});
+
+// Team public webpage — must be last so it doesn't swallow other routes
+app.get("/:slug", async (req, res) => {
+  const { slug } = req.params;
+
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
+  if (!teams.length) return res.status(404).send("Team not found");
+
+  const team = teams[0];
+  const { rows: fixtures } = await pool.query(
+    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC",
+    [team.id]
+  );
+
+  const host = req.headers.host;
+  const calendarUrl = `https://${host}/calendar/${slug}.ics`;
+
+  res.setHeader("Content-Type", "text/html");
+  res.send(teamPage(team, fixtures, calendarUrl));
 });
 
 // --- Start ---

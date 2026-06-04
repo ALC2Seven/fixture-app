@@ -251,8 +251,23 @@ app.post("/admin/teams", requireMasterKey, async (req, res) => {
 
 // List all teams (master key required)
 app.get("/admin/teams", requireMasterKey, async (req, res) => {
-  const { rows } = await pool.query("SELECT id, name, slug, created_at FROM teams ORDER BY created_at DESC");
+  const { rows } = await pool.query("SELECT id, name, slug, tier, created_at FROM teams ORDER BY created_at DESC");
   res.json(rows);
+});
+
+// Update a team's tier (master key required)
+app.post("/admin/teams/:slug/tier", requireMasterKey, async (req, res) => {
+  const { slug } = req.params;
+  const { tier } = req.body;
+  if (!["free", "standard", "pro"].includes(tier)) {
+    return res.status(400).json({ error: "tier must be free, standard or pro" });
+  }
+  const { rows } = await pool.query(
+    "UPDATE teams SET tier = $1 WHERE slug = $2 RETURNING id, name, slug, tier",
+    [tier, slug]
+  );
+  if (!rows.length) return res.status(404).json({ error: "Team not found" });
+  res.json({ success: true, team: rows[0] });
 });
 
 // --- Start ---

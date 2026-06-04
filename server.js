@@ -379,8 +379,11 @@ app.get("/dashboard/logout", (req, res) => {
 
 // Main dashboard — fixtures
 app.get("/dashboard", requireLogin, async (req, res) => {
+  // Master users go straight to their own view unless viewing a specific team
+  if (req.user.role === "master" && !req.query.teamId) return res.redirect("/dashboard/master");
+
   const teamId = req.user.role === "master" ? req.query.teamId : req.user.team_id;
-  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [teamId || req.user.team_id]);
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [teamId]);
   const team = teams[0];
   if (!team) return res.redirect("/dashboard/master");
 

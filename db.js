@@ -5,7 +5,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-// Create all tables if they don't exist
+// Create all tables if they don't exist, then run migrations
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS teams (
@@ -38,6 +38,18 @@ async function initDb() {
       UNIQUE(team_id, email)
     );
   `);
+
+  // Migrations — safe to run repeatedly (ADD COLUMN IF NOT EXISTS)
+  await pool.query(`
+    ALTER TABLE teams
+      ADD COLUMN IF NOT EXISTS tier VARCHAR(20) DEFAULT 'free';
+
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS home_team VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS away_team VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS is_home   BOOLEAN DEFAULT true;
+  `);
+
   console.log("Database ready");
 }
 

@@ -8,6 +8,7 @@ const icalLib = require("ical-generator");
 const ical = icalLib.default || icalLib;
 const { Resend } = require("resend");
 const { pool, initDb } = require("./db");
+const { teamPage } = require("./views/team");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -92,6 +93,29 @@ app.get("/", (req, res) => {
   res.send("Fixture calendar service is running.");
 });
 
+// Team public webpage
+app.get("/:slug", async (req, res) => {
+  const { slug } = req.params;
+
+  // Don't intercept API or calendar routes
+  if (slug.startsWith("admin") || slug.startsWith("calendar")) return res.status(404).send("Not found");
+
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
+  if (!teams.length) return res.status(404).send("Team not found");
+
+  const team = teams[0];
+  const { rows: fixtures } = await pool.query(
+    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC",
+    [team.id]
+  );
+
+  const host = req.headers.host;
+  const calendarUrl = `https://${host}/calendar/${slug}.ics`;
+
+  res.setHeader("Content-Type", "text/html");
+  res.send(teamPage(team, fixtures, calendarUrl));
+});
+
 // --- Calendar feed (public) ---
 
 app.get("/calendar/:slug.ics", async (req, res) => {
@@ -134,17 +158,18 @@ app.get("/calendar/:slug.ics", async (req, res) => {
 
 // Add a fixture
 app.post("/admin/:slug/fixtures", requireTeamKey, async (req, res) => {
-  const { summary, location, description, start, end } = req.body;
-  if (!summary || !start || !end) {
-    return res.status(400).json({ error: "summary, start and end are required" });
+  const { summary, location, description, start, end, homeTeam, awayTeam, isHome } = req.body;
+  if (!start || !end || !homeTeam || !awayTeam) {
+    return res.status(400).json({ error: "start, end, homeTeam and awayTeam are required" });
   }
 
   const uid = `${req.team.slug}-${Date.now()}@calendar.fixture-app.com`;
+  const autoSummary = summary || `${homeTeam} vs ${awayTeam}`;
 
   const { rows } = await pool.query(
-    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [req.team.id, uid, summary, location, description, start, end]
+    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [req.team.id, uid, autoSummary, location, description, start, end, homeTeam, awayTeam, isHome !== false]
   );
 
   res.json({ success: true, fixture: rows[0] });

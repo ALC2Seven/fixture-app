@@ -111,10 +111,11 @@ function teamPage(team, fixtures, calendarUrl) {
 
     /* Hero */
     .hero {
-      background: linear-gradient(to right, rgba(0,0,0,0.85) 50%, rgba(0,0,0,0.4)),
+      background: linear-gradient(to bottom, rgba(0,0,0,0.75), rgba(0,0,0,0.6)),
                   url('https://images.unsplash.com/photo-1552667466-07770ae110d0?w=1200&q=80') center/cover no-repeat;
-      padding: 60px 40px 50px;
+      padding: 70px 20px 60px;
       border-bottom: 3px solid #cc0000;
+      text-align: center;
     }
     .hero h1 {
       font-size: 3rem;
@@ -125,12 +126,12 @@ function teamPage(team, fixtures, calendarUrl) {
     }
     .hero h1 span { color: #cc0000; }
     .hero p {
-      margin-top: 12px;
+      margin: 12px auto 0;
       color: #aaa;
       font-size: 0.95rem;
       max-width: 400px;
     }
-    .hero-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .hero-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 
     .btn {
       display: inline-flex;
@@ -151,7 +152,7 @@ function teamPage(team, fixtures, calendarUrl) {
     .btn-outline:hover { background: rgba(255,255,255,0.1); }
 
     /* Section */
-    .section { max-width: 960px; margin: 40px auto; padding: 0 20px; }
+    .section { max-width: 860px; margin: 40px auto; padding: 0 20px; }
     .section-title {
       font-size: 0.8rem;
       font-weight: 700;
@@ -161,6 +162,7 @@ function teamPage(team, fixtures, calendarUrl) {
       border-bottom: 1px solid #333;
       padding-bottom: 10px;
       margin-bottom: 0;
+      text-align: center;
     }
 
     /* Month group header */
@@ -175,6 +177,7 @@ function teamPage(team, fixtures, calendarUrl) {
       padding: 12px 20px 8px;
       border-bottom: 1px solid #2e2e2e;
       margin-top: 10px;
+      text-align: center;
     }
 
     /* Fixture rows */
@@ -244,6 +247,8 @@ function teamPage(team, fixtures, calendarUrl) {
       display: flex;
       align-items: center;
       gap: 8px;
+      width: 100%;
+      justify-content: center;
     }
     .past-toggle:hover { color: #888; }
     #past-fixtures { display: none; }

@@ -12,20 +12,39 @@ function homePage(user, team, fixtures, subscribers, flash) {
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
 
-  const fixtureRows = fixtures.map(f => `
-    <tr>
-      <td>${fmtDate(f.start_time)}</td>
+  const fixtureRows = fixtures.map(f => {
+    const cancelled = f.status === "cancelled_hidden" || f.status === "cancelled_shown";
+    const rowStyle = cancelled ? "opacity:0.5" : "";
+    const statusBadge = f.status === "cancelled_shown"
+      ? '<span class="badge" style="background:#2a1010;color:#ff6666">CANCELLED</span>'
+      : f.status === "cancelled_hidden"
+      ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
+      : "";
+    return `
+    <tr style="${rowStyle}">
+      <td>${fmtDate(f.start_time)} ${statusBadge}</td>
       <td><strong>${f.home_team || f.summary}</strong></td>
       <td style="color:#cc0000;font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
       <td style="color:#888">${f.location || "TBC"}</td>
       <td>${f.is_home ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
-      <td>
-        <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
-          class="btn btn-secondary btn-sm">Reschedule</button>
+      <td style="display:flex;gap:6px;flex-wrap:wrap">
+        ${!cancelled ? `
+          <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
+            class="btn btn-secondary btn-sm">Reschedule</button>
+          <button onclick="openChangeOpponent('${f.uid}','${f.home_team}','${f.away_team}')"
+            class="btn btn-secondary btn-sm">Change Team</button>
+          <button onclick="openCancel('${f.uid}','${f.summary}')"
+            class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>
+        ` : `
+          <form method="POST" action="/dashboard/fixtures/restore">
+            <input type="hidden" name="uid" value="${f.uid}">
+            <button class="btn btn-secondary btn-sm">Restore</button>
+          </form>
+        `}
       </td>
     </tr>
-  `).join("");
+  `}).join("");
 
   const content = `
     ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
@@ -212,7 +231,85 @@ function homePage(user, team, fixtures, subscribers, flash) {
       function closeReschedule() {
         document.getElementById('reschedule-modal').style.display = 'none';
       }
+
+      // Change opponent modal
+      function openChangeOpponent(uid, homeTeam, awayTeam) {
+        document.getElementById('opponent-uid').value = uid;
+        document.getElementById('opponent-home').value = homeTeam;
+        document.getElementById('opponent-away').value = awayTeam;
+        document.getElementById('opponent-modal').style.display = 'flex';
+      }
+      function closeChangeOpponent() {
+        document.getElementById('opponent-modal').style.display = 'none';
+      }
+
+      // Cancel modal
+      function openCancel(uid, name) {
+        document.getElementById('cancel-uid').value = uid;
+        document.getElementById('cancel-name').textContent = name;
+        document.getElementById('cancel-modal').style.display = 'flex';
+      }
+      function closeCancel() {
+        document.getElementById('cancel-modal').style.display = 'none';
+      }
     </script>
+
+    <!-- Change Opponent Modal -->
+    <div id="opponent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:480px;max-width:90vw">
+        <div class="card-title">Change Opponent</div>
+        <p style="color:#aaa;font-size:0.82rem;margin-bottom:16px">Update team names — calendars will update automatically.</p>
+        <form method="POST" action="/dashboard/fixtures/change-opponent">
+          <input type="hidden" name="uid" id="opponent-uid">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Home Team</label>
+              <input type="text" name="homeTeam" id="opponent-home" required>
+            </div>
+            <div class="form-group">
+              <label>Away Team</label>
+              <input type="text" name="awayTeam" id="opponent-away" required>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" onclick="closeChangeOpponent()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Cancel Fixture Modal -->
+    <div id="cancel-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:460px;max-width:90vw">
+        <div class="card-title" style="color:#ff6666">Cancel Fixture</div>
+        <p id="cancel-name" style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:16px"></p>
+        <p style="color:#aaa;font-size:0.85rem;margin-bottom:20px">How would you like to handle this cancellation?</p>
+        <form method="POST" action="/dashboard/fixtures/cancel">
+          <input type="hidden" name="uid" id="cancel-uid">
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+            <label style="display:flex;align-items:flex-start;gap:12px;background:#1f1f1f;padding:14px;cursor:pointer;border:1px solid #333">
+              <input type="radio" name="cancelType" value="shown" checked style="margin-top:3px;width:auto">
+              <div>
+                <div style="font-weight:700;font-size:0.85rem">Show as Cancelled</div>
+                <div style="color:#666;font-size:0.78rem;margin-top:3px">Fixture stays on the public page marked as CANCELLED. Calendar shows it as cancelled.</div>
+              </div>
+            </label>
+            <label style="display:flex;align-items:flex-start;gap:12px;background:#1f1f1f;padding:14px;cursor:pointer;border:1px solid #333">
+              <input type="radio" name="cancelType" value="hidden" style="margin-top:3px;width:auto">
+              <div>
+                <div style="font-weight:700;font-size:0.85rem">Remove Completely</div>
+                <div style="color:#666;font-size:0.78rem;margin-top:3px">Hidden from public page. Removed from subscribed calendars automatically.</div>
+              </div>
+            </label>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button type="submit" class="btn btn-sm" style="background:#cc0000;color:#fff">Confirm Cancellation</button>
+            <button type="button" onclick="closeCancel()" class="btn btn-secondary">Keep Fixture</button>
+          </div>
+        </form>
+      </div>
+    </div>
   `;
 
   return layout(`${team.name} Dashboard`, content, user);

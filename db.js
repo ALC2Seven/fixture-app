@@ -62,6 +62,12 @@ async function initDb() {
     );
   `);
 
+  // Add status column to fixtures if it doesn't exist
+  await pool.query(`
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
+  `);
+
   console.log("Database ready");
 }
 

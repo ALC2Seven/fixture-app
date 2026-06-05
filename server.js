@@ -130,13 +130,15 @@ app.get("/calendar/:slug.ics", async (req, res) => {
   });
 
   for (const fixture of fixtures) {
+    const cancelled = fixture.status === "cancelled_hidden" || fixture.status === "cancelled_shown";
     const event = calendar.createEvent({
       sequence: fixture.sequence,
-      summary: fixture.summary,
+      summary: cancelled ? `CANCELLED: ${fixture.summary}` : fixture.summary,
       description: fixture.description,
       location: fixture.location,
       start: new Date(fixture.start_time),
       end: new Date(fixture.end_time),
+      status: cancelled ? "CANCELLED" : "CONFIRMED",
     });
     event.uid(fixture.uid);
   }
@@ -417,6 +419,54 @@ app.post("/dashboard/fixtures/reschedule", requireLogin, async (req, res) => {
 
   await sendRescheduleEmails(team, { ...updated[0], reason }, oldStart);
   req.session.flash = { type: "success", msg: `Fixture rescheduled. Subscribers notified.` };
+  res.redirect("/dashboard");
+});
+
+// Change opponent via dashboard
+app.post("/dashboard/fixtures/change-opponent", requireLogin, async (req, res) => {
+  const { uid, homeTeam, awayTeam } = req.body;
+  const teamId = req.user.team_id;
+
+  const { rows } = await pool.query(
+    `UPDATE fixtures SET home_team=$1, away_team=$2, summary=$3, sequence=sequence+1, updated_at=NOW()
+     WHERE uid=$4 AND team_id=$5 RETURNING *`,
+    [homeTeam, awayTeam, `${homeTeam} vs ${awayTeam}`, uid, teamId]
+  );
+
+  if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+  req.session.flash = { type: "success", msg: `Opponent updated to ${homeTeam} vs ${awayTeam}` };
+  res.redirect("/dashboard");
+});
+
+// Cancel fixture via dashboard
+app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
+  const { uid, cancelType } = req.body; // cancelType: 'hidden' or 'shown'
+  const teamId = req.user.team_id;
+  const status = cancelType === "shown" ? "cancelled_shown" : "cancelled_hidden";
+
+  const { rows } = await pool.query(
+    `UPDATE fixtures SET status=$1, sequence=sequence+1, updated_at=NOW()
+     WHERE uid=$2 AND team_id=$3 RETURNING *`,
+    [status, uid, teamId]
+  );
+
+  if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+
+  const msg = cancelType === "shown"
+    ? "Fixture marked as cancelled — still visible on public page."
+    : "Fixture cancelled and hidden from public page.";
+  req.session.flash = { type: "success", msg };
+  res.redirect("/dashboard");
+});
+
+// Restore a cancelled fixture
+app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
+  const { uid } = req.body;
+  await pool.query(
+    `UPDATE fixtures SET status='active', sequence=sequence+1, updated_at=NOW() WHERE uid=$1 AND team_id=$2`,
+    [uid, req.user.team_id]
+  );
+  req.session.flash = { type: "success", msg: "Fixture restored." };
   res.redirect("/dashboard");
 });
 

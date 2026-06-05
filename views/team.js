@@ -14,11 +14,12 @@ function fixtureRow(fixture, isNext) {
   const opponent = fixture.is_home ? fixture.away_team : fixture.home_team;
   const homeAway = fixture.is_home ? "HOME" : "AWAY";
   const homeAwayColor = fixture.is_home ? "#cc0000" : "#888";
+  const cancelled = fixture.status === "cancelled_shown";
 
   return `
-    <div class="fixture-row ${isNext ? "next-fixture" : ""}">
+    <div class="fixture-row ${isNext ? "next-fixture" : ""}" style="${cancelled ? "opacity:0.55;border-left-color:#555" : ""}">
       <div class="fixture-date">
-        ${isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
+        ${cancelled ? '<div class="next-label" style="background:#555">CANCELLED</div>' : isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
         <div class="date-block">
           <span class="day">${d.day}</span>
           <span class="date-num">${d.date}</span>
@@ -44,8 +45,9 @@ function fixtureRow(fixture, isNext) {
 
 function teamPage(team, fixtures, calendarUrl) {
   const now = new Date();
-  const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
-  const past     = fixtures.filter(f => new Date(f.start_time) <  now);
+  const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
+  const upcoming = visible.filter(f => new Date(f.start_time) >= now);
+  const past     = visible.filter(f => new Date(f.start_time) <  now);
 
   const upcomingRows = upcoming.map((f, i) => fixtureRow(f, i === 0)).join("");
   const pastRows     = past.map(f => fixtureRow(f, false)).join("");

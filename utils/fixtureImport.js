@@ -53,6 +53,14 @@ async function generateTemplate(teamName) {
   const noteRow = sheet.getRow(3);
   noteRow.font = { italic: true, color: { argb: "FFAAAAAA" } };
 
+  // Force date and time columns to plain text so Excel never converts them
+  ["date", "kickoff", "endtime"].forEach(key => {
+    sheet.getColumn(key).numFmt = "@";
+    sheet.getColumn(key).eachCell({ includeEmpty: false }, cell => {
+      cell.numFmt = "@";
+    });
+  });
+
   // Dropdown validation for Home or Away column
   sheet.getColumn("homeaway").eachCell({ includeEmpty: true }, (cell, rowNumber) => {
     if (rowNumber > 1) {
@@ -88,19 +96,95 @@ async function parseFixtures(buffer, mimetype, teamName) {
     // Skip header, example, and note rows
     if (rowNumber <= 3) return;
 
-    const date        = String(row.getCell(1).value || "").trim();
-    const kickoff     = String(row.getCell(2).value || "").trim();
-    const endtime     = String(row.getCell(3).value || "").trim();
+    // Helper: extract date parts — handles JS Date, Excel serial number, formula result, or DD/MM/YYYY string
+    function parseDateCell(cellValue) {
+      if (cellValue === null || cellValue === undefined) return null;
+
+      // Unwrap formula result objects: { formula: '...', result: <value> }
+      if (typeof cellValue === "object" && !(cellValue instanceof Date) && cellValue.result !== undefined) {
+        cellValue = cellValue.result;
+      }
+
+      // JS Date object (ExcelJS returns this for date-formatted cells)
+      if (cellValue instanceof Date) {
+        // Use local date parts — ExcelJS returns dates in local time, not UTC
+        return {
+          day:   String(cellValue.getDate()).padStart(2, "0"),
+          month: String(cellValue.getMonth() + 1).padStart(2, "0"),
+          year:  String(cellValue.getFullYear()),
+        };
+      }
+
+      // Excel serial date number (e.g. 46187 = 14 Jun 2026)
+      if (typeof cellValue === "number" && cellValue > 1000) {
+        const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+        const d = new Date(excelEpoch.getTime() + Math.floor(cellValue) * 86400000);
+        return {
+          day:   String(d.getUTCDate()).padStart(2, "0"),
+          month: String(d.getUTCMonth() + 1).padStart(2, "0"),
+          year:  String(d.getUTCFullYear()),
+        };
+      }
+
+      // String — try DD/MM/YYYY
+      const str = String(cellValue).trim();
+      const parts = str.split("/");
+      if (parts.length === 3) {
+        return { day: parts[0].padStart(2,"0"), month: parts[1].padStart(2,"0"), year: parts[2].trim() };
+      }
+
+      // Last resort: log what we got so we can diagnose
+      console.warn(`[import] Unrecognised date cell: type=${typeof cellValue}, value=${JSON.stringify(cellValue)}`);
+      return null;
+    }
+
+    // Helper: extract HH:MM — handles JS Date (time fraction), number (fraction of day), or HH:MM string
+    function parseTimeCell(cellValue) {
+      if (cellValue === null || cellValue === undefined || cellValue === "") return "";
+
+      // Unwrap formula result
+      if (typeof cellValue === "object" && !(cellValue instanceof Date) && cellValue.result !== undefined) {
+        cellValue = cellValue.result;
+      }
+
+      // JS Date (ExcelJS returns time-only cells as Date on epoch day)
+      if (cellValue instanceof Date) {
+        const h = String(cellValue.getUTCHours()).padStart(2,"0");
+        const m = String(cellValue.getUTCMinutes()).padStart(2,"0");
+        return `${h}:${m}`;
+      }
+
+      // Decimal fraction of a day: 0.625 = 15:00
+      if (typeof cellValue === "number" && cellValue >= 0 && cellValue < 1) {
+        const totalMins = Math.round(cellValue * 24 * 60);
+        return `${String(Math.floor(totalMins / 60)).padStart(2,"0")}:${String(totalMins % 60).padStart(2,"0")}`;
+      }
+
+      return String(cellValue).trim();
+    }
+
+    const dateRaw     = row.getCell(1).value;
+    const kickoffRaw  = row.getCell(2).value;
+    const endtimeRaw  = row.getCell(3).value;
+    if (rowNumber === 4) {
+      console.log(`[import debug] row4 date: type=${typeof dateRaw}, val=${JSON.stringify(dateRaw)}, isDate=${dateRaw instanceof Date}`);
+      console.log(`[import debug] row4 kickoff: type=${typeof kickoffRaw}, val=${JSON.stringify(kickoffRaw)}`);
+    }
     const opponent    = String(row.getCell(4).value || "").trim();
     const homeaway    = String(row.getCell(5).value || "").trim().toLowerCase();
     const venue       = String(row.getCell(6).value || "").trim();
     const competition = String(row.getCell(7).value || "").trim();
 
     // Skip blank rows
-    if (!date && !opponent) return;
+    if (!dateRaw && !opponent) return;
+
+    const parsedDate = parseDateCell(dateRaw);
+    const kickoff    = parseTimeCell(kickoffRaw);
+    const endtime    = parseTimeCell(endtimeRaw);
+    const date       = dateRaw ? String(dateRaw) : "";
 
     // Validate required fields
-    if (!date || !kickoff || !opponent || !homeaway) {
+    if (!parsedDate || !kickoff || !opponent || !homeaway) {
       errors.push(`Row ${rowNumber}: missing required fields (date, kick-off time, opponent, home/away)`);
       return;
     }
@@ -110,16 +194,11 @@ async function parseFixtures(buffer, mimetype, teamName) {
       return;
     }
 
-    // Parse date DD/MM/YYYY
-    const [day, month, year] = date.split("/");
-    if (!day || !month || !year) {
-      errors.push(`Row ${rowNumber}: invalid date format — use DD/MM/YYYY`);
-      return;
-    }
+    const { day, month, year } = parsedDate;
 
     // Build ISO datetime strings
-    const startISO = `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}T${kickoff.padStart(5,"0")}:00Z`;
-    const endISO   = `${year}-${month.padStart(2,"0")}-${day.padStart(2,"0")}T${endtime.padStart(5,"0")}:00Z`;
+    const startISO = `${year}-${month}-${day}T${kickoff.padStart(5,"0")}:00Z`;
+    const endISO   = `${year}-${month}-${day}T${endtime.padStart(5,"0")}:00Z`;
 
     if (isNaN(new Date(startISO))) {
       errors.push(`Row ${rowNumber}: invalid date or time`);

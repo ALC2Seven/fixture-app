@@ -17,7 +17,7 @@ function fixtureRow(fixture, isNext, isEven) {
   const homeAway = fixture.is_home ? "HOME" : "AWAY";
   const homeAwayColor = fixture.is_home ? "#cc0000" : "#888";
   const cancelled = fixture.status === "cancelled_shown";
-  const rowBg = cancelled ? "#161616" : isNext ? "#1f1a1a" : isEven ? "#181818" : "#141414";
+  const rowBg = cancelled ? "#1e1e1e" : isNext ? "#2a1f1f" : isEven ? "#242424" : "#2c2c2c";
 
   return `
     <div class="fixture-row ${isNext ? "next-fixture" : ""}" style="background:${rowBg};${cancelled ? "opacity:0.55;border-left-color:#444" : ""}">
@@ -103,7 +103,7 @@ function teamPage(team, fixtures, calendarUrl) {
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      background: #111;
+      background: #1a1a1a;
       color: #fff;
       font-family: 'Arial', sans-serif;
       min-height: 100vh;
@@ -170,11 +170,11 @@ function teamPage(team, fixtures, calendarUrl) {
       font-weight: 700;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: #555;
-      background: #111;
-      padding: 10px 20px 6px;
-      border-bottom: 1px solid #1e1e1e;
-      margin-top: 8px;
+      color: #777;
+      background: #1a1a1a;
+      padding: 12px 20px 8px;
+      border-bottom: 1px solid #2e2e2e;
+      margin-top: 10px;
     }
 
     /* Fixture rows */
@@ -206,7 +206,7 @@ function teamPage(team, fixtures, calendarUrl) {
       line-height: 1.3;
     }
     .date-block { display: flex; flex-direction: column; }
-    .date-block .day   { font-size: 0.7rem; color: #888; letter-spacing: 1px; }
+    .date-block .day   { font-size: 0.7rem; color: #aaa; letter-spacing: 1px; }
     .date-block .date-num { font-size: 1.8rem; font-weight: 900; line-height: 1; }
     .date-block .month { font-size: 0.7rem; color: #cc0000; font-weight: 700; }
 
@@ -218,8 +218,8 @@ function teamPage(team, fixtures, calendarUrl) {
     }
     .home-away { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; }
     .match-info { display: flex; flex-direction: column; gap: 2px; }
-    .clock, .venue { font-size: 0.78rem; color: #aaa; }
-    .competition { font-size: 0.7rem; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+    .clock, .venue { font-size: 0.78rem; color: #bbb; }
+    .competition { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 
     .fixture-teams {
       display: flex;
@@ -255,7 +255,7 @@ function teamPage(team, fixtures, calendarUrl) {
     footer {
       text-align: center;
       padding: 40px 20px;
-      color: #444;
+      color: #666;
       font-size: 0.75rem;
       letter-spacing: 1px;
     }

@@ -123,10 +123,12 @@ function homePage(user, team, fixtures, subscribers, flash) {
           <input type="hidden" name="newStart" id="reschedule-start">
           <input type="hidden" name="newEnd" id="reschedule-end">
           <div class="form-row">
-            <div class="form-group">
+            <div class="form-group" style="flex:1 1 100%">
               <label>New Date</label>
               <input type="date" id="reschedule-date" required>
             </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
               <label>Kick-off Time (UTC)</label>
               <input type="time" id="reschedule-starttime" required>

@@ -451,17 +451,32 @@ app.post("/dashboard/fixtures/switch-home-away", requireLogin, async (req, res) 
   const { uid } = req.body;
   const teamId = req.user.team_id;
 
-  // Swap home_team and away_team, flip is_home
+  // Get club name to determine current position
+  const { rows: teamRows } = await pool.query("SELECT name FROM teams WHERE id = $1", [teamId]);
+  const clubName = teamRows[0].name;
+
+  // Get current fixture
+  const { rows: current } = await pool.query("SELECT * FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, teamId]);
+  if (!current.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+
+  const f = current[0];
+  const isActuallyHome = f.home_team === clubName;
+
+  // Swap: if currently home, make away (club moves to away_team slot)
+  const newHomeTeam = isActuallyHome ? f.away_team : clubName;
+  const newAwayTeam = isActuallyHome ? clubName : f.home_team;
+  const newIsHome   = !isActuallyHome;
+
   const { rows } = await pool.query(
     `UPDATE fixtures
-     SET is_home = NOT is_home,
-         home_team = away_team,
-         away_team = home_team,
-         summary = away_team || ' vs ' || home_team,
+     SET is_home = $1,
+         home_team = $2,
+         away_team = $3,
+         summary = $2 || ' vs ' || $3,
          sequence = sequence + 1,
          updated_at = NOW()
-     WHERE uid=$1 AND team_id=$2 RETURNING *`,
-    [uid, teamId]
+     WHERE uid=$4 AND team_id=$5 RETURNING *`,
+    [newIsHome, newHomeTeam, newAwayTeam, uid, teamId]
   );
 
   if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }

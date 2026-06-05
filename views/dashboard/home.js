@@ -20,8 +20,9 @@ function homePage(user, team, fixtures, subscribers, flash) {
       : f.status === "cancelled_hidden"
       ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
       : "";
-    // Work out which team name is the opponent (not the club's own name)
-    const opponentName = f.is_home ? f.away_team : f.home_team;
+    // Derive home/away from actual team name positions, not the is_home flag
+    const isActuallyHome = f.home_team === team.name;
+    const opponentName   = isActuallyHome ? f.away_team : f.home_team;
     return `
     <tr style="${rowStyle}">
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
@@ -29,16 +30,16 @@ function homePage(user, team, fixtures, subscribers, flash) {
       <td style="color:#cc0000;font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
       <td style="color:#888">${f.location || "TBC"}</td>
-      <td>${f.is_home ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
+      <td>${isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${!cancelled ? `
           <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
-          <button onclick="openChangeOpponent('${f.uid}','${opponentName}','${f.is_home}')"
+          <button onclick="openChangeOpponent('${f.uid}','${opponentName}','${isActuallyHome}')"
             class="btn btn-secondary btn-sm">Change Opponent</button>
           <form method="POST" action="/dashboard/fixtures/switch-home-away" style="display:inline">
             <input type="hidden" name="uid" value="${f.uid}">
-            <button class="btn btn-secondary btn-sm">${f.is_home ? "→ Away" : "→ Home"}</button>
+            <button class="btn btn-secondary btn-sm">${isActuallyHome ? "→ Away" : "→ Home"}</button>
           </form>
           <button onclick="openCancel('${f.uid}','${f.summary}')"
             class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>

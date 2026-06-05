@@ -480,8 +480,7 @@ app.post("/dashboard/fixtures/switch-home-away", requireLogin, async (req, res) 
   );
 
   if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
-  const f = rows[0];
-  req.session.flash = { type: "success", msg: `Switched to ${f.is_home ? "Home" : "Away"} fixture.` };
+  req.session.flash = { type: "success", msg: `Switched to ${newIsHome ? "Home" : "Away"} fixture.` };
   res.redirect("/dashboard");
 });
 

@@ -20,6 +20,8 @@ function homePage(user, team, fixtures, subscribers, flash) {
       : f.status === "cancelled_hidden"
       ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
       : "";
+    // Work out which team name is the opponent (not the club's own name)
+    const opponentName = f.is_home ? f.away_team : f.home_team;
     return `
     <tr style="${rowStyle}">
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
@@ -32,8 +34,12 @@ function homePage(user, team, fixtures, subscribers, flash) {
         ${!cancelled ? `
           <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
-          <button onclick="openChangeOpponent('${f.uid}','${f.home_team}','${f.away_team}')"
-            class="btn btn-secondary btn-sm">Change Team</button>
+          <button onclick="openChangeOpponent('${f.uid}','${opponentName}','${f.is_home}')"
+            class="btn btn-secondary btn-sm">Change Opponent</button>
+          <form method="POST" action="/dashboard/fixtures/switch-home-away" style="display:inline">
+            <input type="hidden" name="uid" value="${f.uid}">
+            <button class="btn btn-secondary btn-sm">${f.is_home ? "→ Away" : "→ Home"}</button>
+          </form>
           <button onclick="openCancel('${f.uid}','${f.summary}')"
             class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>
         ` : `
@@ -233,10 +239,10 @@ function homePage(user, team, fixtures, subscribers, flash) {
       }
 
       // Change opponent modal
-      function openChangeOpponent(uid, homeTeam, awayTeam) {
+      function openChangeOpponent(uid, opponentName, isHome) {
         document.getElementById('opponent-uid').value = uid;
-        document.getElementById('opponent-home').value = homeTeam;
-        document.getElementById('opponent-away').value = awayTeam;
+        document.getElementById('opponent-name').value = opponentName;
+        document.getElementById('opponent-ishome').value = isHome;
         document.getElementById('opponent-modal').style.display = 'flex';
       }
       function closeChangeOpponent() {
@@ -256,22 +262,17 @@ function homePage(user, team, fixtures, subscribers, flash) {
 
     <!-- Change Opponent Modal -->
     <div id="opponent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
-      <div class="card" style="width:480px;max-width:90vw">
+      <div class="card" style="width:400px;max-width:90vw">
         <div class="card-title">Change Opponent</div>
-        <p style="color:#aaa;font-size:0.82rem;margin-bottom:16px">Update team names — calendars will update automatically.</p>
+        <p style="color:#aaa;font-size:0.82rem;margin-bottom:16px">Replace the opposing team — your club name stays the same.</p>
         <form method="POST" action="/dashboard/fixtures/change-opponent">
           <input type="hidden" name="uid" id="opponent-uid">
-          <div class="form-row">
-            <div class="form-group">
-              <label>Home Team</label>
-              <input type="text" name="homeTeam" id="opponent-home" required>
-            </div>
-            <div class="form-group">
-              <label>Away Team</label>
-              <input type="text" name="awayTeam" id="opponent-away" required>
-            </div>
+          <input type="hidden" name="isHome" id="opponent-ishome">
+          <div class="form-group" style="margin-bottom:16px">
+            <label>New Opponent</label>
+            <input type="text" name="opponentName" id="opponent-name" required placeholder="e.g. Riverside Rovers">
           </div>
-          <div style="display:flex;gap:10px;margin-top:8px">
+          <div style="display:flex;gap:10px">
             <button type="submit" class="btn btn-primary">Save Changes</button>
             <button type="button" onclick="closeChangeOpponent()" class="btn btn-secondary">Cancel</button>
           </div>

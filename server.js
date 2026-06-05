@@ -424,8 +424,16 @@ app.post("/dashboard/fixtures/reschedule", requireLogin, async (req, res) => {
 
 // Change opponent via dashboard
 app.post("/dashboard/fixtures/change-opponent", requireLogin, async (req, res) => {
-  const { uid, homeTeam, awayTeam } = req.body;
+  const { uid, opponentName, isHome } = req.body;
   const teamId = req.user.team_id;
+
+  // Get the club's own name
+  const { rows: teamRows } = await pool.query("SELECT name FROM teams WHERE id = $1", [teamId]);
+  const clubName = teamRows[0].name;
+
+  // isHome tells us which slot is the club and which is the opponent
+  const homeTeam = isHome === "true" ? clubName : opponentName;
+  const awayTeam = isHome === "true" ? opponentName : clubName;
 
   const { rows } = await pool.query(
     `UPDATE fixtures SET home_team=$1, away_team=$2, summary=$3, sequence=sequence+1, updated_at=NOW()
@@ -434,7 +442,31 @@ app.post("/dashboard/fixtures/change-opponent", requireLogin, async (req, res) =
   );
 
   if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
-  req.session.flash = { type: "success", msg: `Opponent updated to ${homeTeam} vs ${awayTeam}` };
+  req.session.flash = { type: "success", msg: `Opponent changed to ${opponentName}` };
+  res.redirect("/dashboard");
+});
+
+// Switch home/away
+app.post("/dashboard/fixtures/switch-home-away", requireLogin, async (req, res) => {
+  const { uid } = req.body;
+  const teamId = req.user.team_id;
+
+  // Swap home_team and away_team, flip is_home
+  const { rows } = await pool.query(
+    `UPDATE fixtures
+     SET is_home = NOT is_home,
+         home_team = away_team,
+         away_team = home_team,
+         summary = away_team || ' vs ' || home_team,
+         sequence = sequence + 1,
+         updated_at = NOW()
+     WHERE uid=$1 AND team_id=$2 RETURNING *`,
+    [uid, teamId]
+  );
+
+  if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+  const f = rows[0];
+  req.session.flash = { type: "success", msg: `Switched to ${f.is_home ? "Home" : "Away"} fixture.` };
   res.redirect("/dashboard");
 });
 

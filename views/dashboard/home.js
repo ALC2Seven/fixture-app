@@ -22,12 +22,15 @@ function homePage(user, team, fixtures, subscribers, flash) {
       : "";
     // Work out which team name is the opponent (not the club's own name)
     const opponentName = f.is_home ? f.away_team : f.home_team;
+    // Always display actual home team on left, away team on right
+    const displayHome = f.is_home ? f.home_team : f.away_team;
+    const displayAway = f.is_home ? f.away_team : f.home_team;
     return `
     <tr style="${rowStyle}">
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
-      <td><strong>${f.home_team || f.summary}</strong></td>
+      <td><strong>${displayHome || f.summary}</strong></td>
       <td style="color:#cc0000;font-weight:900">VS</td>
-      <td><strong>${f.away_team || ""}</strong></td>
+      <td><strong>${displayAway || ""}</strong></td>
       <td style="color:#888">${f.location || "TBC"}</td>
       <td>${f.is_home ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">

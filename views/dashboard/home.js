@@ -109,14 +109,20 @@ function homePage(user, team, fixtures, subscribers, flash) {
 
     <!-- Reschedule Modal -->
     <div id="reschedule-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
-      <div class="card" style="width:480px;max-width:90vw">
+      <div class="card" style="width:500px;max-width:90vw">
         <div class="card-title">Reschedule Fixture</div>
-        <p id="reschedule-name" style="color:#aaa;font-size:0.85rem;margin-bottom:16px"></p>
+        <p id="reschedule-name" style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:6px"></p>
+
+        <!-- Current date display -->
+        <div style="background:#111;border-left:3px solid #555;padding:8px 12px;margin-bottom:16px;font-size:0.82rem;color:#888">
+          Current date: <span id="reschedule-current" style="color:#aaa;font-weight:700"></span>
+        </div>
+
         <form method="POST" action="/dashboard/fixtures/reschedule">
           <input type="hidden" name="uid" id="reschedule-uid">
           <div class="form-row">
             <div class="form-group">
-              <label>New Date & Time (UTC)</label>
+              <label>New Kick-off Date & Time (UTC)</label>
               <input type="datetime-local" name="newStart" id="reschedule-start" required>
             </div>
             <div class="form-group">
@@ -124,6 +130,7 @@ function homePage(user, team, fixtures, subscribers, flash) {
               <input type="datetime-local" name="newEnd" id="reschedule-end" required>
             </div>
           </div>
+          <p style="color:#555;font-size:0.75rem;margin:-6px 0 12px">End time updates automatically to match original match duration.</p>
           <div class="form-group" style="margin-bottom:16px">
             <label>Reason (optional)</label>
             <input type="text" name="reason" placeholder="e.g. Pitch waterlogged">
@@ -137,18 +144,35 @@ function homePage(user, team, fixtures, subscribers, flash) {
     </div>
 
     <script>
-      function toLocalDatetime(iso) {
+      function toUtcDatetime(iso) {
         const d = new Date(iso);
         const pad = n => String(n).padStart(2,'0');
-        return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+pad(d.getHours())+':'+pad(d.getMinutes());
+        return d.getUTCFullYear()+'-'+pad(d.getUTCMonth()+1)+'-'+pad(d.getUTCDate())+'T'+pad(d.getUTCHours())+':'+pad(d.getUTCMinutes());
       }
+      function fmtDisplay(iso) {
+        return new Date(iso).toUTCString().replace(':00 GMT','').replace(' GMT','');
+      }
+
+      let matchDurationMs = 0;
+
       function openReschedule(uid, name, start, end) {
+        matchDurationMs = new Date(end) - new Date(start);
         document.getElementById('reschedule-uid').value = uid;
         document.getElementById('reschedule-name').textContent = name;
-        document.getElementById('reschedule-start').value = toLocalDatetime(start);
-        document.getElementById('reschedule-end').value = toLocalDatetime(end);
+        document.getElementById('reschedule-current').textContent = fmtDisplay(start);
+        document.getElementById('reschedule-start').value = toUtcDatetime(start);
+        document.getElementById('reschedule-end').value = toUtcDatetime(end);
         document.getElementById('reschedule-modal').style.display = 'flex';
       }
+
+      // Auto-update end time when start changes, preserving match duration
+      document.getElementById('reschedule-start').addEventListener('change', function() {
+        if (!this.value) return;
+        const newStart = new Date(this.value + 'Z');
+        const newEnd = new Date(newStart.getTime() + matchDurationMs);
+        document.getElementById('reschedule-end').value = toUtcDatetime(newEnd.toISOString());
+      });
+
       function closeReschedule() {
         document.getElementById('reschedule-modal').style.display = 'none';
       }

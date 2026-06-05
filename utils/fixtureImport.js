@@ -166,10 +166,6 @@ async function parseFixtures(buffer, mimetype, teamName) {
     const dateRaw     = row.getCell(1).value;
     const kickoffRaw  = row.getCell(2).value;
     const endtimeRaw  = row.getCell(3).value;
-    if (rowNumber === 4) {
-      console.log(`[import debug] row4 date: type=${typeof dateRaw}, val=${JSON.stringify(dateRaw)}, isDate=${dateRaw instanceof Date}`);
-      console.log(`[import debug] row4 kickoff: type=${typeof kickoffRaw}, val=${JSON.stringify(kickoffRaw)}`);
-    }
     const opponent    = String(row.getCell(4).value || "").trim();
     const homeaway    = String(row.getCell(5).value || "").trim().toLowerCase();
     const venue       = String(row.getCell(6).value || "").trim();

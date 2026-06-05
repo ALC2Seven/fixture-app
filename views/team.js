@@ -1,25 +1,28 @@
 function formatDate(date) {
   const d = new Date(date);
   return {
-    day:   d.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase(),
-    date:  d.getDate(),
-    month: d.toLocaleDateString("en-GB", { month: "short" }).toUpperCase(),
-    year:  d.getFullYear(),
+    day:   d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
+    date:  d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
+    month: d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
+    monthLong: d.toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" }),
+    year:  d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
     time:  d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
+    monthYear: d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }),
   };
 }
 
-function fixtureRow(fixture, isNext) {
+function fixtureRow(fixture, isNext, isEven) {
   const d = formatDate(fixture.start_time);
-  const opponent = fixture.is_home ? fixture.away_team : fixture.home_team;
+  const isActuallyHome = fixture.home_team === fixture.home_team; // always show home/away from data
   const homeAway = fixture.is_home ? "HOME" : "AWAY";
   const homeAwayColor = fixture.is_home ? "#cc0000" : "#888";
   const cancelled = fixture.status === "cancelled_shown";
+  const rowBg = cancelled ? "#161616" : isNext ? "#1f1a1a" : isEven ? "#181818" : "#141414";
 
   return `
-    <div class="fixture-row ${isNext ? "next-fixture" : ""}" style="${cancelled ? "opacity:0.55;border-left-color:#555" : ""}">
+    <div class="fixture-row ${isNext ? "next-fixture" : ""}" style="background:${rowBg};${cancelled ? "opacity:0.55;border-left-color:#444" : ""}">
       <div class="fixture-date">
-        ${cancelled ? '<div class="next-label" style="background:#555">CANCELLED</div>' : isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
+        ${cancelled ? '<div class="next-label" style="background:#444;font-size:0.55rem">CANCELLED</div>' : isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
         <div class="date-block">
           <span class="day">${d.day}</span>
           <span class="date-num">${d.date}</span>
@@ -43,14 +46,50 @@ function fixtureRow(fixture, isNext) {
   `;
 }
 
+// Group fixtures by month and render with month headers
+function fixturesByMonth(fixtures, markNextIndex) {
+  if (!fixtures.length) return '<div class="empty">No fixtures scheduled.</div>';
+
+  const groups = [];
+  let currentMonth = null;
+  let currentGroup = [];
+
+  fixtures.forEach((f, i) => {
+    const d = formatDate(f.start_time);
+    if (d.monthYear !== currentMonth) {
+      if (currentGroup.length) groups.push({ month: currentMonth, fixtures: currentGroup });
+      currentMonth = d.monthYear;
+      currentGroup = [];
+    }
+    currentGroup.push({ fixture: f, index: i });
+  });
+  if (currentGroup.length) groups.push({ month: currentMonth, fixtures: currentGroup });
+
+  let evenCounter = 0;
+  return groups.map(group => {
+    const rows = group.fixtures.map(({ fixture, index }) => {
+      const isNext = index === markNextIndex;
+      const isEven = evenCounter++ % 2 === 0;
+      return fixtureRow(fixture, isNext, isEven);
+    }).join("");
+
+    return `
+      <div class="month-group">
+        <div class="month-header">${group.month}</div>
+        ${rows}
+      </div>
+    `;
+  }).join("");
+}
+
 function teamPage(team, fixtures, calendarUrl) {
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
-  const past     = visible.filter(f => new Date(f.start_time) <  now);
+  const past     = visible.filter(f => new Date(f.start_time) <  now).reverse();
 
-  const upcomingRows = upcoming.map((f, i) => fixtureRow(f, i === 0)).join("");
-  const pastRows     = past.map(f => fixtureRow(f, false)).join("");
+  // Index of next fixture in the upcoming array (always 0 if any upcoming)
+  const nextIndex = upcoming.length > 0 ? 0 : -1;
 
   const showCalendarBtn = team.tier === "standard" || team.tier === "pro";
 
@@ -124,19 +163,31 @@ function teamPage(team, fixtures, calendarUrl) {
       margin-bottom: 0;
     }
 
+    /* Month group header */
+    .month-group { margin-bottom: 6px; }
+    .month-header {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #555;
+      background: #111;
+      padding: 10px 20px 6px;
+      border-bottom: 1px solid #1e1e1e;
+      margin-top: 8px;
+    }
+
     /* Fixture rows */
     .fixture-row {
       display: flex;
       align-items: center;
       gap: 20px;
-      background: #1a1a1a;
-      border-left: 3px solid #333;
-      margin-top: 2px;
-      padding: 16px 20px;
-      transition: border-color 0.2s;
+      border-left: 3px solid transparent;
+      padding: 14px 20px;
+      transition: border-color 0.15s, background 0.15s;
     }
     .fixture-row:hover { border-left-color: #cc0000; }
-    .fixture-row.next-fixture { border-left-color: #cc0000; background: #1f1a1a; }
+    .fixture-row.next-fixture { border-left-color: #cc0000; }
 
     .fixture-date {
       display: flex;
@@ -179,6 +230,24 @@ function teamPage(team, fixtures, calendarUrl) {
     .team-name { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .vs { color: #cc0000; font-size: 1.1rem; font-weight: 900; }
 
+    /* Past fixtures collapsed */
+    .past-toggle {
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .past-toggle:hover { color: #888; }
+    #past-fixtures { display: none; }
+
     /* Empty state */
     .empty { color: #555; font-size: 0.9rem; padding: 30px 20px; text-align: center; }
 
@@ -214,16 +283,30 @@ function teamPage(team, fixtures, calendarUrl) {
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
-    ${upcomingRows || '<div class="empty">No upcoming fixtures scheduled.</div>'}
+    ${fixturesByMonth(upcoming, nextIndex)}
   </div>
 
   ${past.length > 0 ? `
   <div class="section">
-    <div class="section-title">Past Fixtures</div>
-    ${pastRows}
+    <button class="past-toggle" onclick="togglePast(this)">
+      <span id="past-arrow">▶</span> Past Fixtures (${past.length})
+    </button>
+    <div id="past-fixtures">
+      ${fixturesByMonth(past, -1)}
+    </div>
   </div>` : ""}
 
   <footer>POWERED BY FIXTURE APP</footer>
+
+  <script>
+    function togglePast(btn) {
+      const el = document.getElementById('past-fixtures');
+      const arrow = document.getElementById('past-arrow');
+      const open = el.style.display === 'block';
+      el.style.display = open ? 'none' : 'block';
+      arrow.textContent = open ? '▶' : '▼';
+    }
+  </script>
 
 </body>
 </html>`;

@@ -68,6 +68,20 @@ function homePage(user, team, fixtures, subscribers, flash) {
       <div class="stat"><div class="stat-value">${team.tier}</div><div class="stat-label">Plan</div></div>
     </div>
 
+    <!-- Import Fixtures -->
+    <div class="card">
+      <div class="card-title">Import Fixtures from File</div>
+      <p style="color:#888;font-size:0.82rem;margin-bottom:14px">Upload an Excel or CSV file to add multiple fixtures at once. Download the template to get started.</p>
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <a href="/dashboard/fixtures/template" class="btn btn-secondary">⬇ Download Template</a>
+        <form method="POST" action="/dashboard/fixtures/upload" enctype="multipart/form-data" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input type="file" name="file" accept=".xlsx,.csv" required
+            style="background:#111;border:1px solid #333;color:#aaa;padding:8px 12px;font-size:0.82rem;cursor:pointer">
+          <button type="submit" class="btn btn-primary">Upload & Import</button>
+        </form>
+      </div>
+    </div>
+
     <!-- Add Fixture -->
     <div class="card">
       <div class="card-title">Add Fixture</div>

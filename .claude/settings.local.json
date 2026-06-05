@@ -9,7 +9,9 @@
       "Bash(node -e ' *)",
       "Bash(taskkill //F //IM node.exe)",
       "WebFetch(domain:fixture-app-production.up.railway.app)",
-      "Bash(curl -s -X POST https://fixture-app-production.up.railway.app/admin/reschedule -H 'Content-Type: application/json' -H 'x-admin-key: fixtures-admin-2026' -d '{ *)"
+      "Bash(curl -s -X POST https://fixture-app-production.up.railway.app/admin/reschedule -H 'Content-Type: application/json' -H 'x-admin-key: fixtures-admin-2026' -d '{ *)",
+      "Bash(npm uninstall *)",
+      "Bash(npm audit *)"
     ]
   }
 }

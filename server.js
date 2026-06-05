@@ -11,10 +11,14 @@ const bcrypt = require("bcrypt");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { pool, initDb } = require("./db");
+const multer = require("multer");
 const { teamPage } = require("./views/team");
 const { loginPage } = require("./views/dashboard/login");
 const { homePage } = require("./views/dashboard/home");
 const { masterPage } = require("./views/dashboard/master");
+const { generateTemplate, parseFixtures } = require("./utils/fixtureImport");
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -376,6 +380,53 @@ app.get("/dashboard", requireLogin, async (req, res) => {
   const flash = req.session.flash;
   delete req.session.flash;
   res.send(homePage(req.user, team, fixtures, subscribers, flash));
+});
+
+// Download fixture template
+app.get("/dashboard/fixtures/template", requireLogin, async (req, res) => {
+  const { rows } = await pool.query("SELECT name FROM teams WHERE id = $1", [req.user.team_id]);
+  const teamName = rows[0]?.name || "Your Team";
+  const buffer = await generateTemplate(teamName);
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  res.setHeader("Content-Disposition", `attachment; filename="fixture-template-${teamName.toLowerCase().replace(/\s+/g,"-")}.xlsx"`);
+  res.send(buffer);
+});
+
+// Upload fixtures from Excel/CSV
+app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), async (req, res) => {
+  if (!req.file) {
+    req.session.flash = { type: "error", msg: "No file uploaded." };
+    return res.redirect("/dashboard");
+  }
+
+  const { rows: teamRows } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const team = teamRows[0];
+
+  const { fixtures, errors } = await parseFixtures(req.file.buffer, req.file.mimetype, team.name);
+
+  if (!fixtures.length && errors.length) {
+    req.session.flash = { type: "error", msg: `Import failed: ${errors.join(" | ")}` };
+    return res.redirect("/dashboard");
+  }
+
+  // Insert all valid fixtures
+  let imported = 0;
+  for (const f of fixtures) {
+    const uid = `${team.slug}-${Date.now()}-${imported}@calendar.fixture-app.com`;
+    await pool.query(
+      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [team.id, uid, f.summary, f.location, f.description, f.start, f.end || f.start, f.homeTeam, f.awayTeam, f.isHome]
+    );
+    imported++;
+  }
+
+  const msg = errors.length
+    ? `Imported ${imported} fixture${imported !== 1 ? "s" : ""}. Skipped ${errors.length} row${errors.length !== 1 ? "s" : ""} with errors.`
+    : `Successfully imported ${imported} fixture${imported !== 1 ? "s" : ""}.`;
+
+  req.session.flash = { type: "success", msg };
+  res.redirect("/dashboard");
 });
 
 // Add fixture via dashboard

@@ -467,16 +467,17 @@ app.post("/dashboard/fixtures/switch-home-away", requireLogin, async (req, res) 
   const newAwayTeam = isActuallyHome ? clubName : f.home_team;
   const newIsHome   = !isActuallyHome;
 
+  const newSummary = `${newHomeTeam} vs ${newAwayTeam}`;
   const { rows } = await pool.query(
     `UPDATE fixtures
      SET is_home = $1,
          home_team = $2,
          away_team = $3,
-         summary = $2 || ' vs ' || $3,
+         summary = $4,
          sequence = sequence + 1,
          updated_at = NOW()
-     WHERE uid=$4 AND team_id=$5 RETURNING *`,
-    [newIsHome, newHomeTeam, newAwayTeam, uid, teamId]
+     WHERE uid=$5 AND team_id=$6 RETURNING *`,
+    [newIsHome, newHomeTeam, newAwayTeam, newSummary, uid, teamId]
   );
 
   if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }

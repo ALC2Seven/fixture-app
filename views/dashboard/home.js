@@ -120,14 +120,20 @@ function homePage(user, team, fixtures, subscribers, flash) {
 
         <form method="POST" action="/dashboard/fixtures/reschedule">
           <input type="hidden" name="uid" id="reschedule-uid">
+          <input type="hidden" name="newStart" id="reschedule-start">
+          <input type="hidden" name="newEnd" id="reschedule-end">
           <div class="form-row">
             <div class="form-group">
-              <label>New Kick-off Date & Time (UTC)</label>
-              <input type="datetime-local" name="newStart" id="reschedule-start" required>
+              <label>New Date</label>
+              <input type="date" id="reschedule-date" required>
             </div>
             <div class="form-group">
-              <label>New End Time (UTC)</label>
-              <input type="datetime-local" name="newEnd" id="reschedule-end" required>
+              <label>Kick-off Time (UTC)</label>
+              <input type="time" id="reschedule-starttime" required>
+            </div>
+            <div class="form-group">
+              <label>End Time (UTC)</label>
+              <input type="time" id="reschedule-endtime" required>
             </div>
           </div>
           <p style="color:#555;font-size:0.75rem;margin:-6px 0 12px">End time updates automatically to match original match duration.</p>
@@ -157,20 +163,48 @@ function homePage(user, team, fixtures, subscribers, flash) {
 
       function openReschedule(uid, name, start, end) {
         matchDurationMs = new Date(end) - new Date(start);
+        const s = new Date(start);
+        const e = new Date(end);
+        const pad = n => String(n).padStart(2,'0');
+
         document.getElementById('reschedule-uid').value = uid;
         document.getElementById('reschedule-name').textContent = name;
         document.getElementById('reschedule-current').textContent = fmtDisplay(start);
-        document.getElementById('reschedule-start').value = toUtcDatetime(start);
-        document.getElementById('reschedule-end').value = toUtcDatetime(end);
+
+        // Populate the three separate fields
+        document.getElementById('reschedule-date').value =
+          s.getUTCFullYear()+'-'+pad(s.getUTCMonth()+1)+'-'+pad(s.getUTCDate());
+        document.getElementById('reschedule-starttime').value =
+          pad(s.getUTCHours())+':'+pad(s.getUTCMinutes());
+        document.getElementById('reschedule-endtime').value =
+          pad(e.getUTCHours())+':'+pad(e.getUTCMinutes());
+
+        updateHiddenFields();
         document.getElementById('reschedule-modal').style.display = 'flex';
       }
 
-      // Auto-update end time when start changes, preserving match duration
-      document.getElementById('reschedule-start').addEventListener('change', function() {
-        if (!this.value) return;
-        const newStart = new Date(this.value + 'Z');
+      function updateHiddenFields() {
+        const date = document.getElementById('reschedule-date').value;
+        const startTime = document.getElementById('reschedule-starttime').value;
+        const endTime = document.getElementById('reschedule-endtime').value;
+        if (date && startTime) document.getElementById('reschedule-start').value = date + 'T' + startTime + ':00Z';
+        if (date && endTime)   document.getElementById('reschedule-end').value   = date + 'T' + endTime   + ':00Z';
+      }
+
+      // Auto-update end time when kick-off changes, preserving match duration
+      document.getElementById('reschedule-starttime').addEventListener('change', function() {
+        const date = document.getElementById('reschedule-date').value;
+        if (!date || !this.value) return;
+        const newStart = new Date(date + 'T' + this.value + ':00Z');
         const newEnd = new Date(newStart.getTime() + matchDurationMs);
-        document.getElementById('reschedule-end').value = toUtcDatetime(newEnd.toISOString());
+        const pad = n => String(n).padStart(2,'0');
+        document.getElementById('reschedule-endtime').value =
+          pad(newEnd.getUTCHours())+':'+pad(newEnd.getUTCMinutes());
+        updateHiddenFields();
+      });
+
+      ['reschedule-date','reschedule-endtime'].forEach(id => {
+        document.getElementById(id).addEventListener('change', updateHiddenFields);
       });
 
       function closeReschedule() {

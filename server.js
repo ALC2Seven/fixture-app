@@ -16,6 +16,9 @@ const { teamPage } = require("./views/team");
 const { loginPage } = require("./views/dashboard/login");
 const { homePage } = require("./views/dashboard/home");
 const { masterPage } = require("./views/dashboard/master");
+const { homepagePage } = require("./views/marketing/home");
+const { pricingPage } = require("./views/marketing/pricing");
+const { signupPage } = require("./views/marketing/signup");
 const { generateTemplate, parseFixtures } = require("./utils/fixtureImport");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -107,9 +110,74 @@ async function sendRescheduleEmails(team, fixture, oldStart) {
 
 // --- Routes ---
 
-// Health check
+// --- Marketing pages ---
+
 app.get("/", (req, res) => {
-  res.send("Fixture calendar service is running.");
+  if (req.user) return res.redirect("/dashboard");
+  res.send(homepagePage());
+});
+
+app.get("/pricing", (req, res) => {
+  res.send(pricingPage());
+});
+
+// Signup
+app.get("/signup", (req, res) => {
+  if (req.user) return res.redirect("/dashboard");
+  res.send(signupPage());
+});
+
+const RESERVED_SLUGS = ["dashboard", "admin", "calendar", "pricing", "signup", "login", "logout"];
+
+app.post("/signup", async (req, res) => {
+  const { clubName, slug, email, password } = req.body;
+  const prefill = { clubName, slug, email };
+
+  // Basic validation
+  if (!clubName || !slug || !email || !password) {
+    return res.send(signupPage("Please fill in all fields.", prefill));
+  }
+  if (password.length < 8) {
+    return res.send(signupPage("Password must be at least 8 characters.", prefill));
+  }
+  const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "");
+  if (!cleanSlug || cleanSlug !== slug) {
+    return res.send(signupPage("URL can only contain lowercase letters, numbers and hyphens.", prefill));
+  }
+  if (RESERVED_SLUGS.includes(cleanSlug)) {
+    return res.send(signupPage("That URL is reserved — please choose another.", prefill));
+  }
+
+  try {
+    // Create team
+    const { rows: teamRows } = await pool.query(
+      "INSERT INTO teams (name, slug, admin_key, tier) VALUES ($1, $2, $3, 'free') RETURNING *",
+      [clubName.trim(), cleanSlug, `key-${cleanSlug}-${Date.now()}`]
+    );
+    const team = teamRows[0];
+
+    // Create user
+    const passwordHash = await bcrypt.hash(password, 10);
+    const { rows: userRows } = await pool.query(
+      "INSERT INTO users (email, password_hash, team_id, role) VALUES ($1, $2, $3, 'admin') RETURNING *",
+      [email.toLowerCase().trim(), passwordHash, team.id]
+    );
+    const user = userRows[0];
+
+    // Log them in
+    req.session.userId = user.id;
+    res.redirect("/dashboard");
+
+  } catch (err) {
+    if (err.code === "23505") {
+      const msg = err.detail && err.detail.includes("slug")
+        ? "That club URL is already taken — please choose another."
+        : "An account with that email already exists.";
+      return res.send(signupPage(msg, prefill));
+    }
+    console.error("Signup error:", err);
+    return res.send(signupPage("Something went wrong — please try again.", prefill));
+  }
 });
 
 // --- Calendar feed (public) ---

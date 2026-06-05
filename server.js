@@ -409,9 +409,24 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
     return res.redirect("/dashboard");
   }
 
-  // Insert all valid fixtures
+  // Insert all valid fixtures, skipping duplicates
   let imported = 0;
+  let skippedDupes = 0;
   for (const f of fixtures) {
+    // Check for duplicate: same team, same start time, same opponent
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM fixtures
+       WHERE team_id = $1
+         AND start_time = $2
+         AND (home_team = $3 OR away_team = $3)`,
+      [team.id, f.start, f.isHome ? f.awayTeam : f.homeTeam]
+    );
+
+    if (existing.length) {
+      skippedDupes++;
+      continue;
+    }
+
     const uid = `${team.slug}-${Date.now()}-${imported}@calendar.fixture-app.com`;
     await pool.query(
       `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
@@ -421,9 +436,11 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
     imported++;
   }
 
-  const msg = errors.length
-    ? `Imported ${imported} fixture${imported !== 1 ? "s" : ""}. Skipped ${errors.length} row${errors.length !== 1 ? "s" : ""} with errors.`
-    : `Successfully imported ${imported} fixture${imported !== 1 ? "s" : ""}.`;
+  const parts = [];
+  if (imported)      parts.push(`${imported} fixture${imported !== 1 ? "s" : ""} imported`);
+  if (skippedDupes)  parts.push(`${skippedDupes} duplicate${skippedDupes !== 1 ? "s" : ""} skipped`);
+  if (errors.length) parts.push(`${errors.length} row${errors.length !== 1 ? "s" : ""} had errors`);
+  const msg = parts.join(", ") + ".";
 
   req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");

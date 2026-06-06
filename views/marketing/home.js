@@ -138,6 +138,39 @@ function homepagePage(flash) {
     footer nav a:hover { color: #888; }
     footer p { color: #444; font-size: 0.75rem; }
 
+    /* Mobile */
+    @media (max-width: 640px) {
+      nav { padding: 14px 20px; }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .nav-cta { padding: 8px 14px; font-size: 0.78rem; }
+
+      .hero { padding: 60px 20px 50px; }
+      .hero h1 { font-size: 1.9rem; letter-spacing: 1px; }
+      .hero p { font-size: 0.92rem; }
+      .btn { padding: 12px 20px; font-size: 0.82rem; }
+
+      .section { padding: 50px 16px; }
+      .section h2 { font-size: 1.4rem; letter-spacing: 1px; margin-bottom: 30px; }
+
+      .steps { grid-template-columns: 1fr; gap: 16px; }
+      .step { padding: 24px 20px; }
+
+      .features { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .feature { padding: 18px 16px; }
+      .feature h4 { font-size: 0.8rem; }
+      .feature p { font-size: 0.78rem; }
+
+      .tiers { grid-template-columns: 1fr; gap: 16px; }
+      .tier { padding: 28px 20px; }
+      .tier-price { font-size: 2rem; }
+
+      .cta-band { padding: 50px 20px; }
+      .cta-band h2 { font-size: 1.4rem; }
+      .cta-band p { font-size: 0.9rem; }
+
+      footer nav { flex-wrap: wrap; gap: 16px; }
+    }
+
     ${flash ? `
     .flash { background: #1f2a1f; border-left: 3px solid #4a4; color: #8d8; padding: 12px 20px; text-align: center; font-size: 0.85rem; }
     .flash.error { background: #2a1f1f; border-left-color: #a44; color: #d88; }

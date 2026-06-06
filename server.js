@@ -859,6 +859,18 @@ app.post("/dashboard/settings/password", requireLogin, async (req, res) => {
   res.redirect("/dashboard/settings");
 });
 
+// Update social media links
+app.post("/dashboard/settings/social", requireLogin, async (req, res) => {
+  const { facebookUrl, instagramUrl, tiktokUrl } = req.body;
+  const clean = (v) => (v || "").trim() || null;
+  await pool.query(
+    `UPDATE teams SET facebook_url=$1, instagram_url=$2, tiktok_url=$3 WHERE id=$4`,
+    [clean(facebookUrl), clean(instagramUrl), clean(tiktokUrl), req.user.team_id]
+  );
+  req.session.flash = { type: "success", msg: "Social media links updated." };
+  res.redirect("/dashboard/settings");
+});
+
 app.post("/dashboard/subscribers/remove", requireLogin, async (req, res) => {
   await pool.query("DELETE FROM subscribers WHERE team_id=$1 AND email=$2", [req.user.team_id, req.body.email]);
   req.session.flash = { type: "success", msg: "Subscriber removed." };

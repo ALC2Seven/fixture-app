@@ -61,6 +61,32 @@ function settingsPage(user, team, flash) {
       </form>
     </div>
 
+    <!-- Social Media -->
+    <div class="card">
+      <div class="card-title">Social Media</div>
+      <p style="color:#555;font-size:0.78rem;margin-bottom:16px">Links appear on your public fixture page under the Subscribe button. Leave blank to hide.</p>
+      <form method="POST" action="/dashboard/settings/social">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Facebook URL</label>
+            <input type="url" name="facebookUrl" value="${team.facebook_url || ''}"
+              placeholder="https://facebook.com/yourclub">
+          </div>
+          <div class="form-group">
+            <label>Instagram URL</label>
+            <input type="url" name="instagramUrl" value="${team.instagram_url || ''}"
+              placeholder="https://instagram.com/yourclub">
+          </div>
+          <div class="form-group">
+            <label>TikTok URL</label>
+            <input type="url" name="tiktokUrl" value="${team.tiktok_url || ''}"
+              placeholder="https://tiktok.com/@yourclub">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Social Links</button>
+      </form>
+    </div>
+
     <!-- Change Password -->
     <div class="card">
       <div class="card-title">Change Password</div>

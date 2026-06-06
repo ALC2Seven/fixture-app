@@ -43,7 +43,10 @@ async function initDb() {
   await pool.query(`
     ALTER TABLE teams
       ADD COLUMN IF NOT EXISTS tier VARCHAR(20) DEFAULT 'free',
-      ADD COLUMN IF NOT EXISTS home_venue VARCHAR(200);
+      ADD COLUMN IF NOT EXISTS home_venue VARCHAR(200),
+      ADD COLUMN IF NOT EXISTS facebook_url VARCHAR(300),
+      ADD COLUMN IF NOT EXISTS instagram_url VARCHAR(300),
+      ADD COLUMN IF NOT EXISTS tiktok_url VARCHAR(300);
 
     ALTER TABLE fixtures
       ADD COLUMN IF NOT EXISTS home_team VARCHAR(100),

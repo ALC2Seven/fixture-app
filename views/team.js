@@ -151,7 +151,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
                   url('https://images.unsplash.com/photo-1552667466-07770ae110d0?w=1200&q=80') center/cover no-repeat;
       padding: 28px 20px 24px; border-bottom: 3px solid #cc0000; text-align: center;
     }
-    .hero h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; }
+    .hero h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; }
     .hero h1 span { color: #cc0000; }
     .hero p { margin: 6px auto 0; color: #aaa; font-size: 0.8rem; max-width: 400px; }
     .hero-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
@@ -176,9 +176,22 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       margin-bottom: 0; text-align: center;
     }
 
+    /* Social links */
+    .social-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+    .social-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
+      border: 1px solid; transition: opacity 0.15s;
+    }
+    .social-btn:hover { opacity: 0.8; }
+    .social-facebook { color: #1877f2; border-color: #1877f2; }
+    .social-instagram { color: #e1306c; border-color: #e1306c; }
+    .social-tiktok { color: #69c9d0; border-color: #69c9d0; }
+
     /* Tab bar */
     .tab-bar {
-      display: flex; gap: 4px; flex-wrap: wrap;
+      display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;
       margin-top: 16px; margin-bottom: 4px;
       border-bottom: 1px solid #2e2e2e; padding-bottom: 0;
     }
@@ -289,7 +302,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .team-flash-inner.error { background: #2a1a1a; border-color: #a44; color: #d88; }
 
     @media (max-width: 600px) {
-      .hero h1 { font-size: 1.3rem; letter-spacing: 2px; }
+      .hero h1 { font-size: 1.6rem; letter-spacing: 2px; }
       .hero p { font-size: 0.75rem; }
       .fixture-row { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
       .fixture-date { min-width: 100px; }
@@ -338,6 +351,21 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
         }
       })() : ""}
     </div>
+    ${(team.facebook_url || team.instagram_url || team.tiktok_url) ? `
+    <div class="social-links">
+      ${team.facebook_url ? `<a href="${team.facebook_url}" target="_blank" rel="noopener" class="social-btn social-facebook">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+        Facebook
+      </a>` : ""}
+      ${team.instagram_url ? `<a href="${team.instagram_url}" target="_blank" rel="noopener" class="social-btn social-instagram">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+        Instagram
+      </a>` : ""}
+      ${team.tiktok_url ? `<a href="${team.tiktok_url}" target="_blank" rel="noopener" class="social-btn social-tiktok">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.69a8.18 8.18 0 0 0 4.78 1.52V6.77a4.85 4.85 0 0 1-1.01-.08z"/></svg>
+        TikTok
+      </a>` : ""}
+    </div>` : ""}
   </div>
 
   ${justSubscribed ? `

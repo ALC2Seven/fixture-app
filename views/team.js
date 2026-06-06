@@ -109,15 +109,16 @@ function fixturesByMonth(fixtures, markNextIndex, theme) {
 }
 
 // Build tab bar — only include tabs for types that exist in the fixture list
-function buildTabs(fixtures) {
+function buildTabs(fixtures, theme) {
   const types = [...new Set(fixtures.map(f => f.fixture_type || "league"))];
   if (types.length <= 1) return ""; // no tabs if only one type
 
+  const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
   const tabOrder = ["league", "cup", "tournament", "festival"];
   const presentTypes = tabOrder.filter(t => types.includes(t));
 
   const buttons = presentTypes.map(t => {
-    const cfg = TYPE_CONFIG[t] || TYPE_CONFIG.league;
+    const cfg = themeConfig[t] || themeConfig.league;
     const count = fixtures.filter(f => (f.fixture_type || "league") === t).length;
     return `<button class="tab-btn" data-tab="${t}" onclick="filterTab('${t}')">${cfg.label} <span class="tab-count">${count}</span></button>`;
   });
@@ -426,7 +427,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
-    ${buildTabs(upcoming)}
+    ${buildTabs(upcoming, theme)}
     ${past.length > 0 ? `
     <button class="past-toggle" onclick="togglePast(this)">
       <span id="past-arrow">▶</span> Past Fixtures (${past.length})

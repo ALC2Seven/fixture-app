@@ -7,7 +7,7 @@ function fmtDate(d) {
   });
 }
 
-function homePage(user, team, fixtures, subscribers, flash) {
+function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
   const now = new Date();
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
@@ -89,6 +89,19 @@ function homePage(user, team, fixtures, subscribers, flash) {
       </div>
     </div>
 
+    <!-- Home Venue -->
+    <div class="card">
+      <div class="card-title">Home Ground</div>
+      <form method="POST" action="/dashboard/settings/home-venue" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label>Venue Name</label>
+          <input type="text" name="homeVenue" value="${homeVenue || ''}" placeholder="e.g. Riverside Stadium, Manchester">
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+      <p style="color:#555;font-size:0.78rem;margin-top:10px">Auto-fills the venue field when you add or edit a home fixture.</p>
+    </div>
+
     <!-- Import Fixtures -->
     <div class="card">
       <div class="card-title">Import Fixtures from File</div>
@@ -117,7 +130,7 @@ function homePage(user, team, fixtures, subscribers, flash) {
           </div>
           <div class="form-group">
             <label>Playing</label>
-            <select name="isHome">
+            <select name="isHome" id="add-ishome" onchange="autoFillAddVenue(this.value)">
               <option value="true">Home</option>
               <option value="false">Away</option>
             </select>
@@ -134,7 +147,7 @@ function homePage(user, team, fixtures, subscribers, flash) {
           </div>
           <div class="form-group">
             <label>Venue</label>
-            <input type="text" name="location" placeholder="e.g. Riverside Stadium">
+            <input type="text" name="location" id="add-venue" placeholder="e.g. Riverside Stadium">
           </div>
         </div>
         <div class="form-row">
@@ -212,6 +225,34 @@ function homePage(user, team, fixtures, subscribers, flash) {
     </div>
 
     <script>
+      const HOME_VENUE = ${JSON.stringify(homeVenue || '')};
+
+      // Auto-fill venue on Add Fixture form when switching to Home
+      function autoFillAddVenue(isHome) {
+        if (!HOME_VENUE) return;
+        const venueField = document.getElementById('add-venue');
+        if (isHome === 'true') {
+          if (!venueField.value) venueField.value = HOME_VENUE;
+        }
+      }
+      // Pre-fill on page load if Home is selected
+      (function() {
+        const sel = document.getElementById('add-ishome');
+        if (sel && sel.value === 'true' && HOME_VENUE) {
+          const v = document.getElementById('add-venue');
+          if (v && !v.value) v.value = HOME_VENUE;
+        }
+      })();
+
+      // Auto-fill venue in Edit modal when switching to Home
+      function autoFillEditVenue(isHome) {
+        if (!HOME_VENUE) return;
+        const venueField = document.getElementById('edit-location');
+        if (isHome === 'true' && !venueField.value) {
+          venueField.value = HOME_VENUE;
+        }
+      }
+
       function toUtcDatetime(iso) {
         const d = new Date(iso);
         const pad = n => String(n).padStart(2,'0');
@@ -313,7 +354,7 @@ function homePage(user, team, fixtures, subscribers, flash) {
             </div>
             <div class="form-group">
               <label>Playing</label>
-              <select name="isHome" id="edit-ishome">
+              <select name="isHome" id="edit-ishome" onchange="autoFillEditVenue(this.value)">
                 <option value="true">Home</option>
                 <option value="false">Away</option>
               </select>

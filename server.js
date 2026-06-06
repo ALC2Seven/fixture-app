@@ -133,8 +133,8 @@ app.get("/signup", (req, res) => {
 const RESERVED_SLUGS = ["dashboard", "admin", "calendar", "pricing", "signup", "login", "logout"];
 
 app.post("/signup", async (req, res) => {
-  const { clubName, slug, email, password } = req.body;
-  const prefill = { clubName, slug, email };
+  const { clubName, slug, email, password, homeVenue } = req.body;
+  const prefill = { clubName, slug, email, homeVenue };
 
   // Basic validation
   if (!clubName || !slug || !email || !password) {
@@ -154,8 +154,8 @@ app.post("/signup", async (req, res) => {
   try {
     // Create team
     const { rows: teamRows } = await pool.query(
-      "INSERT INTO teams (name, slug, admin_key, tier) VALUES ($1, $2, $3, 'free') RETURNING *",
-      [clubName.trim(), cleanSlug, `key-${cleanSlug}-${Date.now()}`]
+      "INSERT INTO teams (name, slug, admin_key, tier, home_venue) VALUES ($1, $2, $3, 'free', $4) RETURNING *",
+      [clubName.trim(), cleanSlug, `key-${cleanSlug}-${Date.now()}`, homeVenue?.trim() || null]
     );
     const team = teamRows[0];
 
@@ -454,7 +454,7 @@ app.get("/dashboard", requireLogin, async (req, res) => {
 
   const flash = req.session.flash;
   delete req.session.flash;
-  res.send(homePage(req.user, team, fixtures, subscribers, flash));
+  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue));
 });
 
 // Download fixture template
@@ -722,6 +722,13 @@ app.post("/dashboard/subscribers/add", requireLogin, async (req, res) => {
     req.session.flash = { type: "error", msg: "Already subscribed." };
   }
   res.redirect("/dashboard/subscribers");
+});
+
+// Update home venue
+app.post("/dashboard/settings/home-venue", requireLogin, async (req, res) => {
+  await pool.query("UPDATE teams SET home_venue=$1 WHERE id=$2", [req.body.homeVenue?.trim() || null, req.user.team_id]);
+  req.session.flash = { type: "success", msg: "Home venue updated." };
+  res.redirect("/dashboard");
 });
 
 app.post("/dashboard/subscribers/remove", requireLogin, async (req, res) => {

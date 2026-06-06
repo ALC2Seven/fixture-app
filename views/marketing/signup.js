@@ -120,6 +120,15 @@ function signupPage(error, prefill) {
         </div>
 
         <div class="form-group">
+          <label>Home Ground / Venue <span style="color:#555;font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+          <input type="text" name="homeVenue"
+            placeholder="e.g. Riverside Stadium, Manchester"
+            value="${v.homeVenue || ""}"
+            autocomplete="off">
+          <div class="input-hint">Used to auto-fill the venue when adding home fixtures. Can be updated later.</div>
+        </div>
+
+        <div class="form-group">
           <label>Your Email</label>
           <input type="email" name="email" required
             placeholder="you@example.com"

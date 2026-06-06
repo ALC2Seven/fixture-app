@@ -649,14 +649,25 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
   res.redirect("/dashboard");
 });
 
-// Edit fixture details (venue, description)
+// Edit fixture (opponent, home/away, venue, description)
 app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
-  const { uid, location, description } = req.body;
+  const { uid, opponent, isHome, location, description } = req.body;
+  const { rows: teams } = await pool.query("SELECT name FROM teams WHERE id = $1", [req.user.team_id]);
+  const teamName = teams[0].name;
+
+  const home = isHome === "true";
+  const homeTeam = home ? teamName : opponent;
+  const awayTeam = home ? opponent : teamName;
+  const summary  = `${homeTeam} vs ${awayTeam}`;
+
   await pool.query(
-    `UPDATE fixtures SET location=$1, description=$2, updated_at=NOW() WHERE uid=$3 AND team_id=$4`,
-    [location || null, description || null, uid, req.user.team_id]
+    `UPDATE fixtures
+     SET summary=$1, home_team=$2, away_team=$3, is_home=$4,
+         location=$5, description=$6, updated_at=NOW()
+     WHERE uid=$7 AND team_id=$8`,
+    [summary, homeTeam, awayTeam, home, location || null, description || null, uid, req.user.team_id]
   );
-  req.session.flash = { type: "success", msg: "Fixture details updated." };
+  req.session.flash = { type: "success", msg: "Fixture updated." };
   res.redirect("/dashboard");
 });
 

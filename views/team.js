@@ -149,16 +149,16 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .hero {
       background: linear-gradient(to bottom, rgba(0,0,0,0.75), rgba(0,0,0,0.6)),
                   url('https://images.unsplash.com/photo-1552667466-07770ae110d0?w=1200&q=80') center/cover no-repeat;
-      padding: 70px 20px 60px; border-bottom: 3px solid #cc0000; text-align: center;
+      padding: 28px 20px 24px; border-bottom: 3px solid #cc0000; text-align: center;
     }
-    .hero h1 { font-size: 3rem; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; line-height: 1; }
+    .hero h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; }
     .hero h1 span { color: #cc0000; }
-    .hero p { margin: 12px auto 0; color: #aaa; font-size: 0.95rem; max-width: 400px; }
-    .hero-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .hero p { margin: 6px auto 0; color: #aaa; font-size: 0.8rem; max-width: 400px; }
+    .hero-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
     .btn {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 12px 24px; font-size: 0.85rem; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 18px; font-size: 0.78rem; font-weight: 700;
       letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
       border: none; cursor: pointer;
     }
@@ -289,8 +289,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .team-flash-inner.error { background: #2a1a1a; border-color: #a44; color: #d88; }
 
     @media (max-width: 600px) {
-      .hero h1 { font-size: 2rem; letter-spacing: 2px; }
-      .hero p { font-size: 0.88rem; }
+      .hero h1 { font-size: 1.3rem; letter-spacing: 2px; }
+      .hero p { font-size: 0.75rem; }
       .fixture-row { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
       .fixture-date { min-width: 100px; }
       .date-block .date-num { font-size: 1.5rem; }

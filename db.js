@@ -46,7 +46,8 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS home_venue VARCHAR(200),
       ADD COLUMN IF NOT EXISTS facebook_url VARCHAR(300),
       ADD COLUMN IF NOT EXISTS instagram_url VARCHAR(300),
-      ADD COLUMN IF NOT EXISTS tiktok_url VARCHAR(300);
+      ADD COLUMN IF NOT EXISTS tiktok_url VARCHAR(300),
+      ADD COLUMN IF NOT EXISTS theme VARCHAR(10) DEFAULT 'dark';
 
     ALTER TABLE fixtures
       ADD COLUMN IF NOT EXISTS home_team VARCHAR(100),

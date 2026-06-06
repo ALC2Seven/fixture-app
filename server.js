@@ -456,7 +456,10 @@ function requireLogin(req, res, next) {
 
 async function loadSessionUser(req, res, next) {
   if (req.session.userId) {
-    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.userId]);
+    const { rows } = await pool.query(
+      `SELECT u.*, t.theme AS team_theme
+       FROM users u LEFT JOIN teams t ON t.id = u.team_id
+       WHERE u.id = $1`, [req.session.userId]);
     if (rows.length) req.user = rows[0];
   }
   if (req.session.fanUserId) {
@@ -856,6 +859,14 @@ app.post("/dashboard/settings/password", requireLogin, async (req, res) => {
   const hash = await bcrypt.hash(newPassword, 10);
   await pool.query("UPDATE users SET password_hash=$1 WHERE id=$2", [hash, req.user.id]);
   req.session.flash = { type: "success", msg: "Password changed successfully." };
+  res.redirect("/dashboard/settings");
+});
+
+// Update theme
+app.post("/dashboard/settings/theme", requireLogin, async (req, res) => {
+  const theme = req.body.theme === "light" ? "light" : "dark";
+  await pool.query("UPDATE teams SET theme=$1 WHERE id=$2", [theme, req.user.team_id]);
+  req.session.flash = { type: "success", msg: `Theme switched to ${theme} mode.` };
   res.redirect("/dashboard/settings");
 });
 

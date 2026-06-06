@@ -61,6 +61,32 @@ function settingsPage(user, team, flash) {
       </form>
     </div>
 
+    <!-- Theme -->
+    <div class="card">
+      <div class="card-title">Appearance</div>
+      <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">Applies to both your dashboard and your public fixture page.</p>
+      <form method="POST" action="/dashboard/settings/theme">
+        <div class="theme-options" style="margin-bottom:16px">
+          <label class="theme-opt ${(team.theme || 'dark') === 'dark' ? 'selected' : ''}" onclick="selectTheme('dark')">
+            <div class="theme-swatch" style="background:#111;border-color:#333"></div>
+            <div>
+              <div class="theme-label">Dark</div>
+              <div class="theme-sub">Default — dark background</div>
+            </div>
+          </label>
+          <label class="theme-opt ${team.theme === 'light' ? 'selected' : ''}" onclick="selectTheme('light')">
+            <div class="theme-swatch" style="background:#f0f2f5;border-color:#d1d5db"></div>
+            <div>
+              <div class="theme-label">Light</div>
+              <div class="theme-sub">Light background, crisp contrast</div>
+            </div>
+          </label>
+        </div>
+        <input type="hidden" name="theme" id="themeInput" value="${team.theme || 'dark'}">
+        <button type="submit" class="btn btn-primary">Save Appearance</button>
+      </form>
+    </div>
+
     <!-- Social Media -->
     <div class="card">
       <div class="card-title">Social Media</div>
@@ -108,6 +134,13 @@ function settingsPage(user, team, flash) {
         <button type="submit" class="btn btn-primary">Change Password</button>
       </form>
     </div>
+  <script>
+    function selectTheme(val) {
+      document.getElementById('themeInput').value = val;
+      document.querySelectorAll('.theme-opt').forEach(el => el.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+    }
+  </script>
   `;
   return layout("Settings", content, user);
 }

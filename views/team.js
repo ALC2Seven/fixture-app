@@ -73,7 +73,7 @@ function fixturesByMonth(fixtures, markNextIndex) {
   }).join("");
 }
 
-function teamPage(team, fixtures, calendarUrl, flash) {
+function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
@@ -83,8 +83,9 @@ function teamPage(team, fixtures, calendarUrl, flash) {
   const isPaid = team.tier === "standard" || team.tier === "pro";
   const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
 
-  // After successful email signup, show the "now add to calendar" step
-  const showCalendarStep = flash && flash.type === "success";
+  // Flash states: "subscribed" = just subscribed, "already" = duplicate
+  const justSubscribed = flash && flash.msg === "subscribed";
+  const alreadySubscribed = flash && flash.msg === "already";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -236,27 +237,55 @@ function teamPage(team, fixtures, calendarUrl, flash) {
 </head>
 <body>
 
+  ${fanUser ? `
+  <div style="background:#111;border-bottom:1px solid #222;padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:#555">
+    <span>Signed in as <strong style="color:#888">${fanUser.email}</strong></span>
+    <div style="display:flex;gap:16px">
+      <a href="/my-teams" style="color:#aaa;text-decoration:none">My Teams</a>
+      <a href="/fan/logout" style="color:#666;text-decoration:none">Log out</a>
+    </div>
+  </div>` : ""}
+
   <div class="hero">
     <h1>${team.name} <span>Fixtures</span></h1>
     <p>Upcoming and past fixtures for ${team.name}.</p>
     <div class="hero-actions">
-      ${isPaid ? `<button onclick="document.getElementById('subscribe-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>` : ""}
+      ${isPaid ? (() => {
+        if (isSubscribed || justSubscribed) {
+          // State 3: already subscribed — show calendar button + manage link
+          return `<a href="${webcalUrl}" class="btn btn-primary">📅 Add to Calendar</a>
+                  <a href="/my-teams" class="btn btn-outline">Manage Subscriptions</a>`;
+        } else if (fanUser) {
+          // State 2: logged in but not subscribed — one-click subscribe
+          return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline">
+                    <button type="submit" class="btn btn-primary">📅 Subscribe for Updates</button>
+                  </form>`;
+        } else {
+          // State 1: not logged in — prompt
+          return `<button onclick="document.getElementById('subscribe-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>`;
+        }
+      })() : ""}
     </div>
   </div>
 
-  ${flash && flash.type !== "success" ? `
-  <div class="team-flash">
-    <div class="team-flash-inner ${flash.type}">${flash.msg}</div>
-  </div>` : ""}
-
-  ${showCalendarStep ? `
+  ${justSubscribed ? `
   <div class="subscribe-success">
     <div class="subscribe-success-inner">
       <div class="tick">✅</div>
-      <h3>You're signed up for email alerts!</h3>
-      <p>You'll be emailed whenever ${team.name} reschedule or cancel a fixture.<br>Now add the live fixture calendar to your phone or calendar app:</p>
+      <h3>You're subscribed!</h3>
+      <p>You'll be emailed whenever ${team.name} reschedule or cancel a fixture.<br>Now add the live fixture calendar to your phone:</p>
       <a href="${webcalUrl}" class="btn btn-primary" style="display:inline-flex">📅 Add to Calendar</a>
     </div>
+  </div>` : ""}
+
+  ${alreadySubscribed ? `
+  <div class="team-flash">
+    <div class="team-flash-inner info">You're already subscribed to ${team.name}. <a href="/my-teams" style="color:#aad">Manage your subscriptions →</a></div>
+  </div>` : ""}
+
+  ${flash && flash.type === "error" ? `
+  <div class="team-flash">
+    <div class="team-flash-inner error">${flash.msg}</div>
   </div>` : ""}
 
   <div class="section">
@@ -276,19 +305,21 @@ function teamPage(team, fixtures, calendarUrl, flash) {
 
   <footer>POWERED BY FIXTURE APP</footer>
 
-  <!-- Subscribe Modal -->
-  ${isPaid ? `
+  <!-- Subscribe Modal (shown when not logged in) -->
+  ${isPaid && !fanUser ? `
   <div id="subscribe-modal" class="modal-overlay">
     <div class="modal">
       <h2>Subscribe for Updates</h2>
-      <p>Enter your email to get notified whenever ${team.name} reschedule or cancel a fixture. Then add the live calendar to your phone in one tap.</p>
-      <form method="POST" action="/${team.slug}/subscribe">
-        <input type="email" name="email" required placeholder="your@email.com" autofocus>
-        <div class="modal-actions">
-          <button type="submit" class="btn btn-primary">Subscribe</button>
-          <button type="button" onclick="document.getElementById('subscribe-modal').classList.remove('open')" class="btn btn-outline">Cancel</button>
-        </div>
-      </form>
+      <p>Get email alerts when ${team.name} reschedule or cancel a fixture, and add their live calendar to your phone — all in one place.</p>
+      <p style="color:#666;font-size:0.8rem;margin-top:-10px;margin-bottom:20px">Free account required — takes 30 seconds.</p>
+      <div class="modal-actions">
+        <a href="/fan/signup?returnTo=/${team.slug}" class="btn btn-primary">Create Free Account</a>
+        <a href="/fan/login?returnTo=/${team.slug}" class="btn btn-outline">Log In</a>
+      </div>
+      <button type="button" onclick="document.getElementById('subscribe-modal').classList.remove('open')"
+        style="background:none;border:none;color:#555;font-size:0.75rem;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center">
+        Cancel
+      </button>
     </div>
   </div>` : ""}
 

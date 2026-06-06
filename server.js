@@ -20,6 +20,9 @@ const { homepagePage } = require("./views/marketing/home");
 const { pricingPage } = require("./views/marketing/pricing");
 const { signupPage } = require("./views/marketing/signup");
 const { generateTemplate, parseFixtures } = require("./utils/fixtureImport");
+const { fanSignupPage } = require("./views/fan/signup");
+const { fanLoginPage }  = require("./views/fan/login");
+const { fanDashboardPage } = require("./views/fan/dashboard");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
@@ -401,6 +404,10 @@ async function loadSessionUser(req, res, next) {
     const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [req.session.userId]);
     if (rows.length) req.user = rows[0];
   }
+  if (req.session.fanUserId) {
+    const { rows } = await pool.query("SELECT * FROM fan_users WHERE id = $1", [req.session.fanUserId]);
+    if (rows.length) req.fanUser = rows[0];
+  }
   next();
 }
 
@@ -747,6 +754,81 @@ app.post("/dashboard/master/tier", requireLogin, async (req, res) => {
   res.redirect("/dashboard/master");
 });
 
+// ---- Fan account routes ----
+
+app.get("/fan/signup", (req, res) => {
+  if (req.fanUser) return res.redirect("/my-teams");
+  res.send(fanSignupPage(null, req.query.returnTo));
+});
+
+app.post("/fan/signup", async (req, res) => {
+  const { email, password, confirm, returnTo } = req.body;
+  if (password !== confirm) return res.send(fanSignupPage("Passwords do not match.", returnTo));
+  if (password.length < 8) return res.send(fanSignupPage("Password must be at least 8 characters.", returnTo));
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    const { rows } = await pool.query(
+      "INSERT INTO fan_users (email, password_hash) VALUES ($1,$2) RETURNING *",
+      [email.toLowerCase(), hash]
+    );
+    req.session.fanUserId = rows[0].id;
+    res.redirect(returnTo || "/my-teams");
+  } catch (e) {
+    if (e.code === "23505") return res.send(fanSignupPage("An account with that email already exists.", returnTo));
+    throw e;
+  }
+});
+
+app.get("/fan/login", (req, res) => {
+  if (req.fanUser) return res.redirect("/my-teams");
+  res.send(fanLoginPage(null, req.query.returnTo));
+});
+
+app.post("/fan/login", async (req, res) => {
+  const { email, password, returnTo } = req.body;
+  const { rows } = await pool.query("SELECT * FROM fan_users WHERE email = $1", [email.toLowerCase()]);
+  if (!rows.length) return res.send(fanLoginPage("Invalid email or password.", returnTo));
+  const valid = await bcrypt.compare(password, rows[0].password_hash);
+  if (!valid) return res.send(fanLoginPage("Invalid email or password.", returnTo));
+  req.session.fanUserId = rows[0].id;
+  res.redirect(returnTo || "/my-teams");
+});
+
+app.get("/fan/logout", (req, res) => {
+  delete req.session.fanUserId;
+  res.redirect("/");
+});
+
+// My Teams dashboard
+app.get("/my-teams", async (req, res) => {
+  if (!req.fanUser) return res.redirect("/fan/login");
+  const { rows } = await pool.query(`
+    SELECT s.*, t.name AS team_name, t.slug AS team_slug, t.tier
+    FROM subscribers s
+    JOIN teams t ON t.id = s.team_id
+    WHERE s.fan_user_id = $1
+    ORDER BY s.created_at DESC
+  `, [req.fanUser.id]);
+
+  // Build calendar host from request
+  const host = req.headers.host;
+  const subs = rows.map(r => ({ ...r, calendar_host: host }));
+
+  const flash = req.session.fanFlash;
+  delete req.session.fanFlash;
+  res.send(fanDashboardPage(req.fanUser, subs, flash));
+});
+
+app.post("/fan/unsubscribe", async (req, res) => {
+  if (!req.fanUser) return res.redirect("/fan/login");
+  await pool.query(
+    "DELETE FROM subscribers WHERE fan_user_id = $1 AND team_id = $2",
+    [req.fanUser.id, req.body.teamId]
+  );
+  req.session.fanFlash = { type: "success", msg: "You've been unsubscribed." };
+  res.redirect("/my-teams");
+});
+
 // Public email subscribe
 app.post("/:slug/subscribe", async (req, res) => {
   const { slug } = req.params;
@@ -754,18 +836,24 @@ app.post("/:slug/subscribe", async (req, res) => {
 
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
   if (!teams.length) return res.redirect(`/${slug}`);
-
   const team = teams[0];
+
+  // Must be logged in as fan to subscribe
+  if (!req.fanUser) {
+    return res.redirect(`/fan/login?returnTo=/${slug}`);
+  }
+
+  const fanEmail = req.fanUser.email;
   let flash;
   try {
     await pool.query(
-      "INSERT INTO subscribers (team_id, email) VALUES ($1, $2)",
-      [team.id, email]
+      "INSERT INTO subscribers (team_id, email, fan_user_id) VALUES ($1, $2, $3)",
+      [team.id, fanEmail, req.fanUser.id]
     );
-    flash = { type: "success", msg: `✓ You're subscribed! You'll be emailed when ${team.name} fixtures change.` };
+    flash = { type: "success", msg: `subscribed` };
   } catch (e) {
     if (e.code === "23505") {
-      flash = { type: "info", msg: "You're already subscribed to this team." };
+      flash = { type: "info", msg: "already" };
     } else {
       flash = { type: "error", msg: "Something went wrong — please try again." };
     }
@@ -790,11 +878,21 @@ app.get("/:slug", async (req, res) => {
   const host = req.headers.host;
   const calendarUrl = `https://${host}/calendar/${slug}.ics`;
 
+  // Check if logged-in fan is already subscribed to this team
+  let isSubscribed = false;
+  if (req.fanUser) {
+    const { rows: sub } = await pool.query(
+      "SELECT id FROM subscribers WHERE team_id = $1 AND fan_user_id = $2",
+      [team.id, req.fanUser.id]
+    );
+    isSubscribed = sub.length > 0;
+  }
+
   const flash = req.session.teamFlash;
   delete req.session.teamFlash;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl, flash));
+  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed));
 });
 
 // --- Start ---

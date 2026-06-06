@@ -68,6 +68,22 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
   `);
 
+  // Fan user accounts
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS fan_users (
+      id            SERIAL PRIMARY KEY,
+      email         VARCHAR(200) UNIQUE NOT NULL,
+      password_hash VARCHAR(200) NOT NULL,
+      created_at    TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // Link anonymous subscribers to fan accounts
+  await pool.query(`
+    ALTER TABLE subscribers
+      ADD COLUMN IF NOT EXISTS fan_user_id INTEGER REFERENCES fan_users(id) ON DELETE SET NULL;
+  `);
+
   console.log("Database ready");
 }
 

@@ -1,9 +1,9 @@
 // Type config: row colours + badge style
 const TYPE_CONFIG = {
-  league:     { label: "League",     evenBg: "#141929", oddBg: "#1a2035", badge: null }, // no badge — default
-  cup:        { label: "Cup",        evenBg: "#201800", oddBg: "#2a2000", badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
-  tournament: { label: "Tournament", evenBg: "#001624", oddBg: "#001d30", badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
-  festival:   { label: "Festival",   evenBg: "#091509", oddBg: "#0e1e0e", badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
+  league:     { label: "League",     evenBg: "#222630", oddBg: "#282c38", badge: null }, // no badge — default
+  cup:        { label: "Cup",        evenBg: "#2a2410", oddBg: "#312b14", badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
+  tournament: { label: "Tournament", evenBg: "#18222e", oddBg: "#1e2a38", badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
+  festival:   { label: "Festival",   evenBg: "#1a2218", oddBg: "#202a1e", badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
 };
 
 function formatDate(date) {
@@ -28,9 +28,9 @@ function fixtureRow(fixture, isNext, isEven) {
 
   let rowBg;
   if (cancelled) {
-    rowBg = "#141929";
+    rowBg = "#1e2025";
   } else if (isNext) {
-    rowBg = "#1f1525";
+    rowBg = "#2e2535";
   } else {
     rowBg = isEven ? cfg.evenBg : cfg.oddBg;
   }
@@ -143,7 +143,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
   <title>${team.name} — Fixtures</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f1219; color: #fff; font-family: Arial, sans-serif; min-height: 100vh; }
+    body { background: #1e2025; color: #fff; font-family: Arial, sans-serif; min-height: 100vh; }
 
     /* Hero */
     .hero {
@@ -172,7 +172,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .section-title {
       font-size: 0.8rem; font-weight: 700; letter-spacing: 3px;
       text-transform: uppercase; color: #cc0000;
-      border-bottom: 1px solid #1e2535; padding-bottom: 10px;
+      border-bottom: 1px solid #2e3240; padding-bottom: 10px;
       margin-bottom: 0; text-align: center;
     }
 
@@ -193,7 +193,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .tab-bar {
       display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;
       margin-top: 16px; margin-bottom: 4px;
-      border-bottom: 1px solid #1e2535; padding-bottom: 0;
+      border-bottom: 1px solid #2e3240; padding-bottom: 0;
     }
     .tab-btn {
       background: none; border: none; color: #666;
@@ -205,7 +205,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .tab-btn:hover { color: #aaa; }
     .tab-btn.active { color: #fff; border-bottom-color: #cc0000; }
     .tab-count {
-      background: #1e2535; color: #667; font-size: 0.6rem;
+      background: #2e3240; color: #778; font-size: 0.6rem;
       padding: 1px 5px; border-radius: 8px; font-weight: 700;
     }
     .tab-btn.active .tab-count { background: #cc0000; color: #fff; }
@@ -214,8 +214,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .month-group { margin-bottom: 6px; }
     .month-header {
       font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
-      text-transform: uppercase; color: #6b7a99; background: #0f1219;
-      padding: 12px 20px 8px; border-bottom: 1px solid #1e2535;
+      text-transform: uppercase; color: #888; background: #1e2025;
+      padding: 12px 20px 8px; border-bottom: 1px solid #2e3240;
       margin-top: 10px; text-align: center;
     }
 
@@ -244,7 +244,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .fixture-teams { display: flex; align-items: center; gap: 16px; flex: 1; }
     .team-name { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .vs { color: #cc0000; font-size: 1.1rem; font-weight: 900; }
-    .fixture-row { border-bottom: 1px solid #1a2030; }
+    .fixture-row { border-bottom: 1px solid #2a2e3a; }
 
     /* Type badge */
     .type-badge {
@@ -270,7 +270,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     }
     .modal-overlay.open { display: flex; }
     .modal {
-      background: #141929; border-top: 3px solid #cc0000;
+      background: #252830; border-top: 3px solid #cc0000;
       padding: 32px 28px; width: 100%; max-width: 440px;
     }
     .modal h2 { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
@@ -324,7 +324,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 <body>
 
   ${fanUser ? `
-  <div style="background:#0b0e16;border-bottom:1px solid #1a2030;padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:#556">
+  <div style="background:#181a1f;border-bottom:1px solid #2a2e3a;padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:#666">
     <span>Signed in as <strong style="color:#888">${fanUser.email}</strong></span>
     <div style="display:flex;gap:16px">
       <a href="/my-teams" style="color:#aaa;text-decoration:none">My Teams</a>

@@ -89,19 +89,6 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
       </div>
     </div>
 
-    <!-- Home Venue -->
-    <div class="card">
-      <div class="card-title">Home Ground</div>
-      <form method="POST" action="/dashboard/settings/home-venue" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <div class="form-group" style="flex:1;margin-bottom:0">
-          <label>Venue Name</label>
-          <input type="text" name="homeVenue" value="${homeVenue || ''}" placeholder="e.g. Riverside Stadium, Manchester">
-        </div>
-        <button type="submit" class="btn btn-primary">Save</button>
-      </form>
-      <p style="color:#555;font-size:0.78rem;margin-top:10px">Auto-fills the venue field when you add or edit a home fixture.</p>
-    </div>
-
     <!-- Import Fixtures -->
     <div class="card">
       <div class="card-title">Import Fixtures from File</div>

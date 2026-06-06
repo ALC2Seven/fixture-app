@@ -132,6 +132,7 @@ function layout(title, content, user) {
       <a href="/dashboard">📋 Fixtures</a>
       <a href="/dashboard/subscribers">👥 Subscribers</a>
       <a href="/dashboard/feed">📅 Calendar Feed</a>
+      <a href="/dashboard/settings">⚙️ Settings</a>
       ${user.role === "master" ? `
       <div class="sidebar-section" style="margin-top:16px">Master</div>
       <a href="/dashboard/master">🏢 All Teams</a>

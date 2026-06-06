@@ -724,11 +724,66 @@ app.post("/dashboard/subscribers/add", requireLogin, async (req, res) => {
   res.redirect("/dashboard/subscribers");
 });
 
+const { settingsPage } = require("./views/dashboard/settings");
+
+app.get("/dashboard/settings", requireLogin, async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const flash = req.session.flash; delete req.session.flash;
+  res.send(settingsPage(req.user, teams[0], flash));
+});
+
+// Update club name
+app.post("/dashboard/settings/club", requireLogin, async (req, res) => {
+  const { clubName } = req.body;
+  if (!clubName?.trim()) { req.session.flash = { type: "error", msg: "Club name cannot be empty." }; return res.redirect("/dashboard/settings"); }
+  await pool.query("UPDATE teams SET name=$1 WHERE id=$2", [clubName.trim(), req.user.team_id]);
+  req.session.flash = { type: "success", msg: "Club name updated." };
+  res.redirect("/dashboard/settings");
+});
+
 // Update home venue
 app.post("/dashboard/settings/home-venue", requireLogin, async (req, res) => {
-  await pool.query("UPDATE teams SET home_venue=$1 WHERE id=$2", [req.body.homeVenue?.trim() || null, req.user.team_id]);
-  req.session.flash = { type: "success", msg: "Home venue updated." };
-  res.redirect("/dashboard");
+  const { homeVenue, applyToAll } = req.body;
+  const venue = homeVenue?.trim() || null;
+  await pool.query("UPDATE teams SET home_venue=$1 WHERE id=$2", [venue, req.user.team_id]);
+  if (applyToAll && venue) {
+    await pool.query(
+      "UPDATE fixtures SET location=$1 WHERE team_id=$2 AND is_home=true",
+      [venue, req.user.team_id]
+    );
+  }
+  const msg = applyToAll && venue
+    ? "Home venue updated and applied to all home fixtures."
+    : "Home venue updated.";
+  req.session.flash = { type: "success", msg };
+  res.redirect("/dashboard/settings");
+});
+
+// Update email
+app.post("/dashboard/settings/email", requireLogin, async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) { req.session.flash = { type: "error", msg: "Email cannot be empty." }; return res.redirect("/dashboard/settings"); }
+  try {
+    await pool.query("UPDATE users SET email=$1 WHERE id=$2", [email.toLowerCase().trim(), req.user.id]);
+    req.session.flash = { type: "success", msg: "Email updated." };
+  } catch (e) {
+    req.session.flash = { type: "error", msg: "That email is already in use." };
+  }
+  res.redirect("/dashboard/settings");
+});
+
+// Change password
+app.post("/dashboard/settings/password", requireLogin, async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (newPassword !== confirmPassword) { req.session.flash = { type: "error", msg: "New passwords do not match." }; return res.redirect("/dashboard/settings"); }
+  if (newPassword.length < 8) { req.session.flash = { type: "error", msg: "Password must be at least 8 characters." }; return res.redirect("/dashboard/settings"); }
+  const { rows } = await pool.query("SELECT password_hash FROM users WHERE id=$1", [req.user.id]);
+  const valid = await bcrypt.compare(currentPassword, rows[0].password_hash);
+  if (!valid) { req.session.flash = { type: "error", msg: "Current password is incorrect." }; return res.redirect("/dashboard/settings"); }
+  const hash = await bcrypt.hash(newPassword, 10);
+  await pool.query("UPDATE users SET password_hash=$1 WHERE id=$2", [hash, req.user.id]);
+  req.session.flash = { type: "success", msg: "Password changed successfully." };
+  res.redirect("/dashboard/settings");
 });
 
 app.post("/dashboard/subscribers/remove", requireLogin, async (req, res) => {

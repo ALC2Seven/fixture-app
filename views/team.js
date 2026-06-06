@@ -1,19 +1,17 @@
 function formatDate(date) {
   const d = new Date(date);
   return {
-    day:   d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
-    date:  d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
-    month: d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
-    monthLong: d.toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" }),
-    year:  d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
-    time:  d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
+    day:      d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
+    date:     d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
+    month:    d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
+    year:     d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
+    time:     d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
     monthYear: d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }),
   };
 }
 
 function fixtureRow(fixture, isNext, isEven) {
   const d = formatDate(fixture.start_time);
-  const isActuallyHome = fixture.home_team === fixture.home_team; // always show home/away from data
   const homeAway = fixture.is_home ? "HOME" : "AWAY";
   const homeAwayColor = fixture.is_home ? "#cc0000" : "#888";
   const cancelled = fixture.status === "cancelled_shown";
@@ -46,7 +44,6 @@ function fixtureRow(fixture, isNext, isEven) {
   `;
 }
 
-// Group fixtures by month and render with month headers
 function fixturesByMonth(fixtures, markNextIndex) {
   if (!fixtures.length) return '<div class="empty">No fixtures scheduled.</div>';
 
@@ -72,13 +69,7 @@ function fixturesByMonth(fixtures, markNextIndex) {
       const isEven = evenCounter++ % 2 === 0;
       return fixtureRow(fixture, isNext, isEven);
     }).join("");
-
-    return `
-      <div class="month-group">
-        <div class="month-header">${group.month}</div>
-        ${rows}
-      </div>
-    `;
+    return `<div class="month-group"><div class="month-header">${group.month}</div>${rows}</div>`;
   }).join("");
 }
 
@@ -87,11 +78,13 @@ function teamPage(team, fixtures, calendarUrl, flash) {
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
   const past     = visible.filter(f => new Date(f.start_time) <  now).reverse();
-
-  // Index of next fixture in the upcoming array (always 0 if any upcoming)
   const nextIndex = upcoming.length > 0 ? 0 : -1;
 
-  const showCalendarBtn = team.tier === "standard" || team.tier === "pro";
+  const isPaid = team.tier === "standard" || team.tier === "pro";
+  const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
+
+  // After successful email signup, show the "now add to calendar" step
+  const showCalendarStep = flash && flash.type === "success";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -101,50 +94,24 @@ function teamPage(team, fixtures, calendarUrl, flash) {
   <title>${team.name} — Fixtures</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #1a1a1a;
-      color: #fff;
-      font-family: 'Arial', sans-serif;
-      min-height: 100vh;
-    }
+    body { background: #1a1a1a; color: #fff; font-family: Arial, sans-serif; min-height: 100vh; }
 
     /* Hero */
     .hero {
       background: linear-gradient(to bottom, rgba(0,0,0,0.75), rgba(0,0,0,0.6)),
                   url('https://images.unsplash.com/photo-1552667466-07770ae110d0?w=1200&q=80') center/cover no-repeat;
-      padding: 70px 20px 60px;
-      border-bottom: 3px solid #cc0000;
-      text-align: center;
+      padding: 70px 20px 60px; border-bottom: 3px solid #cc0000; text-align: center;
     }
-    .hero h1 {
-      font-size: 3rem;
-      font-weight: 900;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      line-height: 1;
-    }
+    .hero h1 { font-size: 3rem; font-weight: 900; letter-spacing: 4px; text-transform: uppercase; line-height: 1; }
     .hero h1 span { color: #cc0000; }
-    .hero p {
-      margin: 12px auto 0;
-      color: #aaa;
-      font-size: 0.95rem;
-      max-width: 400px;
-    }
+    .hero p { margin: 12px auto 0; color: #aaa; font-size: 0.95rem; max-width: 400px; }
     .hero-actions { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      text-decoration: none;
-      border: none;
-      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 24px; font-size: 0.85rem; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
+      border: none; cursor: pointer;
     }
     .btn-primary { background: #cc0000; color: #fff; }
     .btn-primary:hover { background: #aa0000; }
@@ -154,184 +121,116 @@ function teamPage(team, fixtures, calendarUrl, flash) {
     /* Section */
     .section { max-width: 860px; margin: 40px auto; padding: 0 20px; }
     .section-title {
-      font-size: 0.8rem;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #cc0000;
-      border-bottom: 1px solid #333;
-      padding-bottom: 10px;
-      margin-bottom: 0;
-      text-align: center;
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 3px;
+      text-transform: uppercase; color: #cc0000;
+      border-bottom: 1px solid #333; padding-bottom: 10px;
+      margin-bottom: 0; text-align: center;
     }
 
-    /* Month group header */
+    /* Month headers */
     .month-group { margin-bottom: 6px; }
     .month-header {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: #777;
-      background: #1a1a1a;
-      padding: 12px 20px 8px;
-      border-bottom: 1px solid #2e2e2e;
-      margin-top: 10px;
-      text-align: center;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: #777; background: #1a1a1a;
+      padding: 12px 20px 8px; border-bottom: 1px solid #2e2e2e;
+      margin-top: 10px; text-align: center;
     }
 
     /* Fixture rows */
     .fixture-row {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      border-left: 3px solid transparent;
-      padding: 14px 20px;
-      transition: border-color 0.15s, background 0.15s;
+      display: flex; align-items: center; gap: 20px;
+      border-left: 3px solid transparent; padding: 14px 20px;
+      transition: border-color 0.15s;
     }
     .fixture-row:hover { border-left-color: #cc0000; }
     .fixture-row.next-fixture { border-left-color: #cc0000; }
-
-    .fixture-date {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 130px;
-    }
+    .fixture-date { display: flex; align-items: center; gap: 12px; min-width: 130px; }
     .next-label {
-      background: #cc0000;
-      color: #fff;
-      font-size: 0.6rem;
-      font-weight: 900;
-      letter-spacing: 1px;
-      text-align: center;
-      padding: 6px 8px;
-      line-height: 1.3;
+      background: #cc0000; color: #fff; font-size: 0.6rem; font-weight: 900;
+      letter-spacing: 1px; text-align: center; padding: 6px 8px; line-height: 1.3;
     }
     .date-block { display: flex; flex-direction: column; }
     .date-block .day   { font-size: 0.7rem; color: #aaa; letter-spacing: 1px; }
     .date-block .date-num { font-size: 1.8rem; font-weight: 900; line-height: 1; }
     .date-block .month { font-size: 0.7rem; color: #cc0000; font-weight: 700; }
-
-    .fixture-details {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      min-width: 160px;
-    }
+    .fixture-details { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
     .home-away { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; }
     .match-info { display: flex; flex-direction: column; gap: 2px; }
     .clock, .venue { font-size: 0.78rem; color: #bbb; }
     .competition { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-
-    .fixture-teams {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex: 1;
-    }
+    .fixture-teams { display: flex; align-items: center; gap: 16px; flex: 1; }
     .team-name { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .vs { color: #cc0000; font-size: 1.1rem; font-weight: 900; }
 
-    /* Past fixtures collapsed */
+    /* Past toggle */
     .past-toggle {
-      background: none;
-      border: none;
-      color: #555;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      cursor: pointer;
-      padding: 12px 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      width: 100%;
-      justify-content: center;
+      background: none; border: none; color: #555; font-size: 0.78rem;
+      font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+      cursor: pointer; padding: 12px 0; display: flex; align-items: center;
+      gap: 8px; width: 100%; justify-content: center;
     }
     .past-toggle:hover { color: #888; }
     #past-fixtures { display: none; }
 
-    /* Email signup */
-    .email-signup {
-      max-width: 860px; margin: 0 auto 10px; padding: 0 20px;
+    /* Subscribe modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85); z-index: 100;
+      align-items: center; justify-content: center; padding: 20px;
     }
-    .email-signup-inner {
-      background: #242424; border-left: 3px solid #cc0000;
-      padding: 24px 28px; display: flex; align-items: center;
-      gap: 20px; flex-wrap: wrap;
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #222; border-top: 3px solid #cc0000;
+      padding: 32px 28px; width: 100%; max-width: 440px;
     }
-    .email-signup-text { flex: 1; min-width: 180px; }
-    .email-signup-text h3 { font-size: 0.85rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-    .email-signup-text p { font-size: 0.78rem; color: #888; }
-    .email-signup form { display: flex; gap: 8px; flex-wrap: wrap; }
-    .email-signup input[type="email"] {
-      background: #1a1a1a; border: 1px solid #333; color: #fff;
-      padding: 10px 14px; font-size: 0.82rem; outline: none; min-width: 220px;
+    .modal h2 { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
+    .modal p { color: #888; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
+    .modal input[type="email"] {
+      width: 100%; background: #111; border: 1px solid #333; color: #fff;
+      padding: 12px 14px; font-size: 0.9rem; outline: none; margin-bottom: 12px;
     }
-    .email-signup input[type="email"]::placeholder { color: #555; }
-    .email-signup input[type="email"]:focus { border-color: #cc0000; }
-    .email-signup button {
-      background: #cc0000; color: #fff; border: none; padding: 10px 18px;
-      font-size: 0.82rem; font-weight: 700; letter-spacing: 1px;
-      text-transform: uppercase; cursor: pointer; white-space: nowrap;
-    }
-    .email-signup button:hover { background: #aa0000; }
+    .modal input[type="email"]:focus { border-color: #cc0000; }
+    .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .modal-actions .btn { flex: 1; justify-content: center; }
 
-    /* Flash */
-    .team-flash {
-      max-width: 860px; margin: 16px auto 0; padding: 0 20px;
+    /* Post-signup step */
+    .subscribe-success {
+      max-width: 860px; margin: 24px auto 0; padding: 0 20px;
     }
-    .team-flash-inner {
-      padding: 12px 18px; font-size: 0.85rem; font-weight: 700;
-      border-left: 3px solid;
+    .subscribe-success-inner {
+      background: #1e2a1e; border: 1px solid #2a4a2a; border-left: 3px solid #4a4;
+      padding: 24px 28px; text-align: center;
     }
-    .team-flash-inner.success { background: #1a2a1a; border-color: #4a4; color: #8d8; }
-    .team-flash-inner.info    { background: #1a1f2a; border-color: #448; color: #88d; }
-    .team-flash-inner.error   { background: #2a1a1a; border-color: #a44; color: #d88; }
+    .subscribe-success-inner .tick { font-size: 1.8rem; margin-bottom: 10px; }
+    .subscribe-success-inner h3 { font-size: 0.9rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #8d8; margin-bottom: 6px; }
+    .subscribe-success-inner p { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
 
     /* Empty state */
     .empty { color: #555; font-size: 0.9rem; padding: 30px 20px; text-align: center; }
 
     /* Footer */
-    footer {
-      text-align: center;
-      padding: 40px 20px;
-      color: #666;
-      font-size: 0.75rem;
-      letter-spacing: 1px;
-    }
+    footer { text-align: center; padding: 40px 20px; color: #666; font-size: 0.75rem; letter-spacing: 1px; }
+
+    /* Flash (non-success) */
+    .team-flash { max-width: 860px; margin: 16px auto 0; padding: 0 20px; }
+    .team-flash-inner { padding: 12px 18px; font-size: 0.85rem; font-weight: 700; border-left: 3px solid; }
+    .team-flash-inner.info  { background: #1a1f2a; border-color: #448; color: #88d; }
+    .team-flash-inner.error { background: #2a1a1a; border-color: #a44; color: #d88; }
 
     @media (max-width: 600px) {
       .hero h1 { font-size: 2rem; letter-spacing: 2px; }
       .hero p { font-size: 0.88rem; }
-
       .fixture-row { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
-
       .fixture-date { min-width: 100px; }
       .date-block .date-num { font-size: 1.5rem; }
-
       .fixture-details { min-width: 130px; flex: 1; }
-
-      .fixture-teams {
-        flex: 0 0 100%;
-        border-top: 1px solid #333;
-        padding-top: 8px;
-        gap: 8px;
-        justify-content: center;
-      }
+      .fixture-teams { flex: 0 0 100%; border-top: 1px solid #333; padding-top: 8px; gap: 8px; justify-content: center; }
       .team-name { font-size: 0.78rem; letter-spacing: 0.5px; }
       .vs { font-size: 0.9rem; }
-
       .section { padding: 0 12px; }
       .month-header { padding: 10px 14px 6px; }
-
-      .email-signup { padding: 0 12px; }
-      .email-signup-inner { padding: 18px 16px; }
-      .email-signup input[type="email"] { min-width: 0; width: 100%; }
-      .email-signup form { width: 100%; }
-      .email-signup button { width: 100%; }
+      .modal { padding: 24px 20px; }
+      .subscribe-success { padding: 0 12px; }
     }
   </style>
 </head>
@@ -341,31 +240,24 @@ function teamPage(team, fixtures, calendarUrl, flash) {
     <h1>${team.name} <span>Fixtures</span></h1>
     <p>Upcoming and past fixtures for ${team.name}.</p>
     <div class="hero-actions">
-      ${showCalendarBtn ? `
-        <a href="webcal://${calendarUrl.replace(/^https?:\/\//, "")}" class="btn btn-primary">
-          📅 Subscribe to Calendar
-        </a>
-      ` : ""}
+      ${isPaid ? `<button onclick="document.getElementById('subscribe-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>` : ""}
     </div>
   </div>
 
-  ${flash ? `
+  ${flash && flash.type !== "success" ? `
   <div class="team-flash">
     <div class="team-flash-inner ${flash.type}">${flash.msg}</div>
   </div>` : ""}
 
-  <div class="email-signup">
-    <div class="email-signup-inner">
-      <div class="email-signup-text">
-        <h3>📧 Get Fixture Alerts</h3>
-        <p>Get emailed whenever a fixture is rescheduled or cancelled.</p>
-      </div>
-      <form method="POST" action="/${team.slug}/subscribe">
-        <input type="email" name="email" required placeholder="your@email.com">
-        <button type="submit">Notify Me</button>
-      </form>
+  ${showCalendarStep ? `
+  <div class="subscribe-success">
+    <div class="subscribe-success-inner">
+      <div class="tick">✅</div>
+      <h3>You're signed up for email alerts!</h3>
+      <p>You'll be emailed whenever ${team.name} reschedule or cancel a fixture.<br>Now add the live fixture calendar to your phone or calendar app:</p>
+      <a href="${webcalUrl}" class="btn btn-primary" style="display:inline-flex">📅 Add to Calendar</a>
     </div>
-  </div>
+  </div>` : ""}
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
@@ -384,6 +276,22 @@ function teamPage(team, fixtures, calendarUrl, flash) {
 
   <footer>POWERED BY FIXTURE APP</footer>
 
+  <!-- Subscribe Modal -->
+  ${isPaid ? `
+  <div id="subscribe-modal" class="modal-overlay">
+    <div class="modal">
+      <h2>Subscribe for Updates</h2>
+      <p>Enter your email to get notified whenever ${team.name} reschedule or cancel a fixture. Then add the live calendar to your phone in one tap.</p>
+      <form method="POST" action="/${team.slug}/subscribe">
+        <input type="email" name="email" required placeholder="your@email.com" autofocus>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+          <button type="button" onclick="document.getElementById('subscribe-modal').classList.remove('open')" class="btn btn-outline">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>` : ""}
+
   <script>
     function togglePast(btn) {
       const el = document.getElementById('past-fixtures');
@@ -392,6 +300,9 @@ function teamPage(team, fixtures, calendarUrl, flash) {
       el.style.display = open ? 'none' : 'block';
       arrow.textContent = open ? '▶' : '▼';
     }
+    // Close modal on backdrop click
+    const modal = document.getElementById('subscribe-modal');
+    if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
   </script>
 
 </body>

@@ -363,20 +363,17 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
     ${buildTabs(upcoming)}
-    <div id="upcoming-rows">
-      ${fixturesByMonth(upcoming, nextIndex)}
-    </div>
-  </div>
-
-  ${past.length > 0 ? `
-  <div class="section">
+    ${past.length > 0 ? `
     <button class="past-toggle" onclick="togglePast(this)">
       <span id="past-arrow">▶</span> Past Fixtures (${past.length})
     </button>
     <div id="past-fixtures">
       ${fixturesByMonth(past, -1)}
+    </div>` : ""}
+    <div id="upcoming-rows">
+      ${fixturesByMonth(upcoming, nextIndex)}
     </div>
-  </div>` : ""}
+  </div>
 
   <footer>POWERED BY FIXTURE APP</footer>
 

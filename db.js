@@ -69,6 +69,11 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active';
   `);
 
+  await pool.query(`
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS fixture_type VARCHAR(20) DEFAULT 'league';
+  `);
+
   // Fan user accounts
   await pool.query(`
     CREATE TABLE IF NOT EXISTS fan_users (

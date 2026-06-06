@@ -12,6 +12,13 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
 
+  const TYPE_BADGES = {
+    league:     '<span class="badge" style="background:#1a1a2a;color:#5c9aff">League</span>',
+    cup:        '<span class="badge" style="background:#2a2000;color:#f0b429">Cup</span>',
+    tournament: '<span class="badge" style="background:#001a2a;color:#29b6f0">Tournament</span>',
+    festival:   '<span class="badge" style="background:#0a1a0a;color:#66bb6a">Festival</span>',
+  };
+
   const fixtureRows = fixtures.map(f => {
     const cancelled = f.status === "cancelled_hidden" || f.status === "cancelled_shown";
     const rowStyle = cancelled ? "opacity:0.5" : "";
@@ -20,9 +27,10 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
       : f.status === "cancelled_hidden"
       ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
       : "";
-    // Derive home/away from actual team name positions, not the is_home flag
+    const typeBadge = TYPE_BADGES[f.fixture_type || "league"] || TYPE_BADGES.league;
     const isActuallyHome = f.home_team === team.name;
     const opponentName   = isActuallyHome ? f.away_team : f.home_team;
+    const fType = f.fixture_type || "league";
     return `
     <tr style="${rowStyle}">
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
@@ -30,12 +38,13 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
       <td style="color:#cc0000;font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
       <td style="color:#888">${f.location || "TBC"}</td>
+      <td>${typeBadge}</td>
       <td>${isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${!cancelled ? `
           <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
-          <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}')"
+          <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}','${fType}')"
             class="btn btn-secondary btn-sm">Edit</button>
           <button onclick="openCancel('${f.uid}','${f.summary}')"
             class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>
@@ -139,6 +148,15 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label>Fixture Type</label>
+            <select name="fixtureType">
+              <option value="league">League / Standard</option>
+              <option value="cup">Cup Game</option>
+              <option value="tournament">Tournament</option>
+              <option value="festival">Festival</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:2">
             <label>Competition / Description</label>
             <input type="text" name="description" placeholder="e.g. Premier League — Matchday 3">
           </div>
@@ -159,6 +177,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
             <th></th>
             <th>Away</th>
             <th>Venue</th>
+            <th>Type</th>
             <th>H/A</th>
             <th></th>
           </tr>
@@ -302,15 +321,13 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
       }
 
       // Combined edit modal
-      function openEdit(uid, opponent, isHome, location, description) {
+      function openEdit(uid, opponent, isHome, location, description, fixtureType) {
         document.getElementById('edit-uid').value = uid;
         document.getElementById('edit-opponent').value = opponent;
         document.getElementById('edit-ishome').value = String(isHome) === 'true' ? 'true' : 'false';
-        // Set the select to match current home/away
-        const sel = document.getElementById('edit-ishome');
-        sel.value = String(isHome) === 'true' ? 'true' : 'false';
         document.getElementById('edit-location').value = location;
         document.getElementById('edit-description').value = description;
+        document.getElementById('edit-type').value = fixtureType || 'league';
         document.getElementById('edit-modal').style.display = 'flex';
       }
       function closeEdit() {
@@ -347,13 +364,24 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
               </select>
             </div>
           </div>
-          <div class="form-group" style="margin-bottom:14px">
-            <label>Venue</label>
-            <input type="text" name="location" id="edit-location" placeholder="e.g. Riverside Stadium">
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:14px">
+              <label>Fixture Type</label>
+              <select name="fixtureType" id="edit-type">
+                <option value="league">League / Standard</option>
+                <option value="cup">Cup Game</option>
+                <option value="tournament">Tournament</option>
+                <option value="festival">Festival</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:2;margin-bottom:14px">
+              <label>Competition / Description</label>
+              <input type="text" name="description" id="edit-description" placeholder="e.g. Premier League — Matchday 3">
+            </div>
           </div>
           <div class="form-group" style="margin-bottom:16px">
-            <label>Competition / Description</label>
-            <input type="text" name="description" id="edit-description" placeholder="e.g. Premier League — Matchday 3">
+            <label>Venue</label>
+            <input type="text" name="location" id="edit-location" placeholder="e.g. Riverside Stadium">
           </div>
           <div style="display:flex;gap:10px">
             <button type="submit" class="btn btn-primary">Save Changes</button>

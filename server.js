@@ -559,9 +559,9 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
 
     const uid = `${team.slug}-${Date.now()}-${imported}@calendar.fixture-app.com`;
     await pool.query(
-      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [team.id, uid, f.summary, f.location, f.description, f.start, f.end || f.start, f.homeTeam, f.awayTeam, f.isHome]
+      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [team.id, uid, f.summary, f.location, f.description, f.start, f.end || f.start, f.homeTeam, f.awayTeam, f.isHome, f.fixtureType || "league"]
     );
     imported++;
   }
@@ -578,7 +578,7 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
 
 // Add fixture via dashboard
 app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
-  const { homeTeam, awayTeam, isHome, start, end, location, description } = req.body;
+  const { homeTeam, awayTeam, isHome, start, end, location, description, fixtureType } = req.body;
   const teamId = req.user.team_id;
   const team = (await pool.query("SELECT * FROM teams WHERE id = $1", [teamId])).rows[0];
 
@@ -586,9 +586,9 @@ app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
   const summary = `${homeTeam} vs ${awayTeam}`;
 
   await pool.query(
-    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-    [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true"]
+    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true", fixtureType || "league"]
   );
 
   req.session.flash = { type: "success", msg: `Fixture added: ${summary}` };
@@ -709,7 +709,7 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
 
 // Edit fixture (opponent, home/away, venue, description)
 app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
-  const { uid, opponent, isHome, location, description } = req.body;
+  const { uid, opponent, isHome, location, description, fixtureType } = req.body;
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const teamName = teams[0].name;
 
@@ -728,9 +728,9 @@ app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   await pool.query(
     `UPDATE fixtures
      SET summary=$1, home_team=$2, away_team=$3, is_home=$4,
-         location=$5, description=$6, sequence=sequence+1, updated_at=NOW()
-     WHERE uid=$7 AND team_id=$8`,
-    [summary, homeTeam, awayTeam, home, newVenue, description || null, uid, req.user.team_id]
+         location=$5, description=$6, fixture_type=$7, sequence=sequence+1, updated_at=NOW()
+     WHERE uid=$8 AND team_id=$9`,
+    [summary, homeTeam, awayTeam, home, newVenue, description || null, fixtureType || "league", uid, req.user.team_id]
   );
 
   let emailsSent = 0;

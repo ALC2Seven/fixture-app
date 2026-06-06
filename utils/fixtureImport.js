@@ -2,14 +2,18 @@ const ExcelJS = require("exceljs");
 
 // Column definitions — order matters, matches the template
 const COLUMNS = [
-  { header: "Date (DD/MM/YYYY)",   key: "date",        width: 18 },
-  { header: "Kick-off Time (HH:MM)", key: "kickoff",   width: 20 },
-  { header: "End Time (HH:MM)",    key: "endtime",      width: 18 },
-  { header: "Opponent",            key: "opponent",     width: 25 },
-  { header: "Home or Away",        key: "homeaway",     width: 16 },
-  { header: "Venue",               key: "venue",        width: 30 },
-  { header: "Competition",         key: "competition",  width: 30 },
+  { header: "Date (DD/MM/YYYY)",     key: "date",        width: 18 },
+  { header: "Kick-off Time (HH:MM)", key: "kickoff",     width: 20 },
+  { header: "End Time (HH:MM)",      key: "endtime",     width: 18 },
+  { header: "Opponent",              key: "opponent",    width: 25 },
+  { header: "Home or Away",          key: "homeaway",    width: 16 },
+  { header: "Venue",                 key: "venue",       width: 30 },
+  { header: "Type",                  key: "type",        width: 14 },
+  { header: "Competition / Description", key: "competition", width: 30 },
 ];
+
+// Valid fixture types
+const VALID_TYPES = ["league", "cup", "tournament", "festival"];
 
 // Generate a template Excel file as a buffer
 async function generateTemplate(teamName) {
@@ -33,6 +37,7 @@ async function generateTemplate(teamName) {
     opponent:    "United AFC",
     homeaway:    "Home",
     venue:       "Riverside Stadium, Manchester",
+    type:        "league",
     competition: "Premier League — Matchday 1",
   });
 
@@ -42,13 +47,14 @@ async function generateTemplate(teamName) {
 
   // Add a note row
   sheet.addRow({
-    date: "← DD/MM/YYYY format",
-    kickoff: "← 24hr format",
-    endtime: "← 24hr format",
-    opponent: `← The other team (your team is always ${teamName})`,
-    homeaway: "← Home or Away only",
-    venue: "← Optional",
-    competition: "← Optional",
+    date:        "← DD/MM/YYYY format",
+    kickoff:     "← 24hr format",
+    endtime:     "← 24hr format",
+    opponent:    `← The other team (your team is always ${teamName})`,
+    homeaway:    "← Home or Away only",
+    venue:       "← Optional",
+    type:        "← league / cup / tournament / festival",
+    competition: "← Optional description e.g. FA Cup Round 1",
   });
   const noteRow = sheet.getRow(3);
   noteRow.font = { italic: true, color: { argb: "FFAAAAAA" } };
@@ -68,6 +74,17 @@ async function generateTemplate(teamName) {
         type: "list",
         allowBlank: true,
         formulae: ['"Home,Away"'],
+      };
+    }
+  });
+
+  // Dropdown validation for Type column
+  sheet.getColumn("type").eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+    if (rowNumber > 1) {
+      cell.dataValidation = {
+        type: "list",
+        allowBlank: true,
+        formulae: ['"league,cup,tournament,festival"'],
       };
     }
   });
@@ -169,7 +186,9 @@ async function parseFixtures(buffer, mimetype, teamName) {
     const opponent    = String(row.getCell(4).value || "").trim();
     const homeaway    = String(row.getCell(5).value || "").trim().toLowerCase();
     const venue       = String(row.getCell(6).value || "").trim();
-    const competition = String(row.getCell(7).value || "").trim();
+    const typeRaw     = String(row.getCell(7).value || "").trim().toLowerCase();
+    const competition = String(row.getCell(8).value || "").trim();
+    const fixtureType = VALID_TYPES.includes(typeRaw) ? typeRaw : "league";
 
     // Skip blank rows
     if (!dateRaw && !opponent) return;
@@ -206,14 +225,15 @@ async function parseFixtures(buffer, mimetype, teamName) {
     const awayTeam = isHome ? opponent : teamName;
 
     fixtures.push({
-      summary:     `${homeTeam} vs ${awayTeam}`,
+      summary:      `${homeTeam} vs ${awayTeam}`,
       homeTeam,
       awayTeam,
       isHome,
-      start:       startISO,
-      end:         endtime ? endISO : null,
-      location:    venue || null,
-      description: competition || null,
+      start:        startISO,
+      end:          endtime ? endISO : null,
+      location:     venue || null,
+      fixtureType,
+      description:  competition || null,
     });
   });
 

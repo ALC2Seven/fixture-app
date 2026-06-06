@@ -1,11 +1,19 @@
+// Type config: row colours + badge style
+const TYPE_CONFIG = {
+  league:     { label: "League",     evenBg: "#242424", oddBg: "#2c2c2c", badge: null }, // no badge — default
+  cup:        { label: "Cup",        evenBg: "#251e00", oddBg: "#2e2500", badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
+  tournament: { label: "Tournament", evenBg: "#001824", oddBg: "#001f2e", badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
+  festival:   { label: "Festival",   evenBg: "#091509", oddBg: "#0f1e0f", badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
+};
+
 function formatDate(date) {
   const d = new Date(date);
   return {
-    day:      d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
-    date:     d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
-    month:    d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
-    year:     d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
-    time:     d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
+    day:       d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
+    date:      d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
+    month:     d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
+    year:      d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
+    time:      d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
     monthYear: d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }),
   };
 }
@@ -15,10 +23,25 @@ function fixtureRow(fixture, isNext, isEven) {
   const homeAway = fixture.is_home ? "HOME" : "AWAY";
   const homeAwayColor = fixture.is_home ? "#cc0000" : "#888";
   const cancelled = fixture.status === "cancelled_shown";
-  const rowBg = cancelled ? "#1e1e1e" : isNext ? "#2a1f1f" : isEven ? "#242424" : "#2c2c2c";
+  const type = fixture.fixture_type || "league";
+  const cfg = TYPE_CONFIG[type] || TYPE_CONFIG.league;
+
+  let rowBg;
+  if (cancelled) {
+    rowBg = "#1e1e1e";
+  } else if (isNext) {
+    rowBg = "#2a1f1f";
+  } else {
+    rowBg = isEven ? cfg.evenBg : cfg.oddBg;
+  }
+
+  const badgeHtml = cfg.badge
+    ? `<span class="type-badge" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>`
+    : "";
 
   return `
-    <div class="fixture-row ${isNext ? "next-fixture" : ""}" style="background:${rowBg};${cancelled ? "opacity:0.55;border-left-color:#444" : ""}">
+    <div class="fixture-row ${isNext ? "next-fixture" : ""}" data-type="${type}"
+         style="background:${rowBg};${cancelled ? "opacity:0.55;border-left-color:#444" : ""}">
       <div class="fixture-date">
         ${cancelled ? '<div class="next-label" style="background:#444;font-size:0.55rem">CANCELLED</div>' : isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
         <div class="date-block">
@@ -28,7 +51,10 @@ function fixtureRow(fixture, isNext, isEven) {
         </div>
       </div>
       <div class="fixture-details">
-        <span class="home-away" style="color:${homeAwayColor}">${homeAway}</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="home-away" style="color:${homeAwayColor}">${homeAway}</span>
+          ${badgeHtml}
+        </div>
         <div class="match-info">
           <span class="clock">🕐 ${d.time}</span>
           <span class="venue">📍 ${fixture.location || "TBC"}</span>
@@ -71,6 +97,28 @@ function fixturesByMonth(fixtures, markNextIndex) {
     }).join("");
     return `<div class="month-group"><div class="month-header">${group.month}</div>${rows}</div>`;
   }).join("");
+}
+
+// Build tab bar — only include tabs for types that exist in the fixture list
+function buildTabs(fixtures) {
+  const types = [...new Set(fixtures.map(f => f.fixture_type || "league"))];
+  if (types.length <= 1) return ""; // no tabs if only one type
+
+  const tabOrder = ["league", "cup", "tournament", "festival"];
+  const presentTypes = tabOrder.filter(t => types.includes(t));
+
+  const buttons = presentTypes.map(t => {
+    const cfg = TYPE_CONFIG[t] || TYPE_CONFIG.league;
+    const count = fixtures.filter(f => (f.fixture_type || "league") === t).length;
+    return `<button class="tab-btn" data-tab="${t}" onclick="filterTab('${t}')">${cfg.label} <span class="tab-count">${count}</span></button>`;
+  });
+
+  return `
+    <div class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="all" onclick="filterTab('all')">All <span class="tab-count">${fixtures.length}</span></button>
+      ${buttons.join("")}
+    </div>
+  `;
 }
 
 function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
@@ -128,6 +176,27 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       margin-bottom: 0; text-align: center;
     }
 
+    /* Tab bar */
+    .tab-bar {
+      display: flex; gap: 4px; flex-wrap: wrap;
+      margin-top: 16px; margin-bottom: 4px;
+      border-bottom: 1px solid #2e2e2e; padding-bottom: 0;
+    }
+    .tab-btn {
+      background: none; border: none; color: #666;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; cursor: pointer;
+      padding: 8px 14px; border-bottom: 2px solid transparent;
+      margin-bottom: -1px; transition: color 0.15s;
+    }
+    .tab-btn:hover { color: #aaa; }
+    .tab-btn.active { color: #fff; border-bottom-color: #cc0000; }
+    .tab-count {
+      background: #333; color: #888; font-size: 0.6rem;
+      padding: 1px 5px; border-radius: 8px; font-weight: 700;
+    }
+    .tab-btn.active .tab-count { background: #cc0000; color: #fff; }
+
     /* Month headers */
     .month-group { margin-bottom: 6px; }
     .month-header {
@@ -163,6 +232,12 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .team-name { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
     .vs { color: #cc0000; font-size: 1.1rem; font-weight: 900; }
 
+    /* Type badge */
+    .type-badge {
+      display: inline-block; padding: 2px 7px; font-size: 0.6rem;
+      font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+    }
+
     /* Past toggle */
     .past-toggle {
       background: none; border: none; color: #555; font-size: 0.78rem;
@@ -186,11 +261,6 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     }
     .modal h2 { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
     .modal p { color: #888; font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
-    .modal input[type="email"] {
-      width: 100%; background: #111; border: 1px solid #333; color: #fff;
-      padding: 12px 14px; font-size: 0.9rem; outline: none; margin-bottom: 12px;
-    }
-    .modal input[type="email"]:focus { border-color: #cc0000; }
     .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .modal-actions .btn { flex: 1; justify-content: center; }
 
@@ -232,6 +302,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       .month-header { padding: 10px 14px 6px; }
       .modal { padding: 24px 20px; }
       .subscribe-success { padding: 0 12px; }
+      .tab-bar { gap: 2px; }
+      .tab-btn { padding: 7px 10px; font-size: 0.65rem; }
     }
   </style>
 </head>
@@ -290,7 +362,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
-    ${fixturesByMonth(upcoming, nextIndex)}
+    ${buildTabs(upcoming)}
+    <div id="upcoming-rows">
+      ${fixturesByMonth(upcoming, nextIndex)}
+    </div>
   </div>
 
   ${past.length > 0 ? `
@@ -331,6 +406,28 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       el.style.display = open ? 'none' : 'block';
       arrow.textContent = open ? '▶' : '▼';
     }
+
+    // Tab filtering — show/hide fixture rows and month-groups by type
+    function filterTab(type) {
+      // Update active tab button
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === type);
+      });
+
+      const rows = document.querySelectorAll('#upcoming-rows .fixture-row');
+      const monthGroups = document.querySelectorAll('#upcoming-rows .month-group');
+
+      rows.forEach(row => {
+        row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
+      });
+
+      // Hide month-group headers when all their rows are hidden
+      monthGroups.forEach(group => {
+        const visible = [...group.querySelectorAll('.fixture-row')].some(r => r.style.display !== 'none');
+        group.style.display = visible ? '' : 'none';
+      });
+    }
+
     // Close modal on backdrop click
     const modal = document.getElementById('subscribe-modal');
     if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });

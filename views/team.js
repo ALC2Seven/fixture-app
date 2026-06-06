@@ -82,7 +82,7 @@ function fixturesByMonth(fixtures, markNextIndex) {
   }).join("");
 }
 
-function teamPage(team, fixtures, calendarUrl) {
+function teamPage(team, fixtures, calendarUrl, flash) {
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
@@ -253,6 +253,44 @@ function teamPage(team, fixtures, calendarUrl) {
     .past-toggle:hover { color: #888; }
     #past-fixtures { display: none; }
 
+    /* Email signup */
+    .email-signup {
+      max-width: 860px; margin: 0 auto 10px; padding: 0 20px;
+    }
+    .email-signup-inner {
+      background: #242424; border-left: 3px solid #cc0000;
+      padding: 24px 28px; display: flex; align-items: center;
+      gap: 20px; flex-wrap: wrap;
+    }
+    .email-signup-text { flex: 1; min-width: 180px; }
+    .email-signup-text h3 { font-size: 0.85rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .email-signup-text p { font-size: 0.78rem; color: #888; }
+    .email-signup form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .email-signup input[type="email"] {
+      background: #1a1a1a; border: 1px solid #333; color: #fff;
+      padding: 10px 14px; font-size: 0.82rem; outline: none; min-width: 220px;
+    }
+    .email-signup input[type="email"]::placeholder { color: #555; }
+    .email-signup input[type="email"]:focus { border-color: #cc0000; }
+    .email-signup button {
+      background: #cc0000; color: #fff; border: none; padding: 10px 18px;
+      font-size: 0.82rem; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; cursor: pointer; white-space: nowrap;
+    }
+    .email-signup button:hover { background: #aa0000; }
+
+    /* Flash */
+    .team-flash {
+      max-width: 860px; margin: 16px auto 0; padding: 0 20px;
+    }
+    .team-flash-inner {
+      padding: 12px 18px; font-size: 0.85rem; font-weight: 700;
+      border-left: 3px solid;
+    }
+    .team-flash-inner.success { background: #1a2a1a; border-color: #4a4; color: #8d8; }
+    .team-flash-inner.info    { background: #1a1f2a; border-color: #448; color: #88d; }
+    .team-flash-inner.error   { background: #2a1a1a; border-color: #a44; color: #d88; }
+
     /* Empty state */
     .empty { color: #555; font-size: 0.9rem; padding: 30px 20px; text-align: center; }
 
@@ -288,6 +326,12 @@ function teamPage(team, fixtures, calendarUrl) {
 
       .section { padding: 0 12px; }
       .month-header { padding: 10px 14px 6px; }
+
+      .email-signup { padding: 0 12px; }
+      .email-signup-inner { padding: 18px 16px; }
+      .email-signup input[type="email"] { min-width: 0; width: 100%; }
+      .email-signup form { width: 100%; }
+      .email-signup button { width: 100%; }
     }
   </style>
 </head>
@@ -302,6 +346,24 @@ function teamPage(team, fixtures, calendarUrl) {
           📅 Subscribe to Calendar
         </a>
       ` : ""}
+    </div>
+  </div>
+
+  ${flash ? `
+  <div class="team-flash">
+    <div class="team-flash-inner ${flash.type}">${flash.msg}</div>
+  </div>` : ""}
+
+  <div class="email-signup">
+    <div class="email-signup-inner">
+      <div class="email-signup-text">
+        <h3>📧 Get Fixture Alerts</h3>
+        <p>Get emailed whenever a fixture is rescheduled or cancelled.</p>
+      </div>
+      <form method="POST" action="/${team.slug}/subscribe">
+        <input type="email" name="email" required placeholder="your@email.com">
+        <button type="submit">Notify Me</button>
+      </form>
     </div>
   </div>
 

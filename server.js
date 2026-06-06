@@ -747,6 +747,33 @@ app.post("/dashboard/master/tier", requireLogin, async (req, res) => {
   res.redirect("/dashboard/master");
 });
 
+// Public email subscribe
+app.post("/:slug/subscribe", async (req, res) => {
+  const { slug } = req.params;
+  const { email } = req.body;
+
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE slug = $1", [slug]);
+  if (!teams.length) return res.redirect(`/${slug}`);
+
+  const team = teams[0];
+  let flash;
+  try {
+    await pool.query(
+      "INSERT INTO subscribers (team_id, email) VALUES ($1, $2)",
+      [team.id, email]
+    );
+    flash = { type: "success", msg: `✓ You're subscribed! You'll be emailed when ${team.name} fixtures change.` };
+  } catch (e) {
+    if (e.code === "23505") {
+      flash = { type: "info", msg: "You're already subscribed to this team." };
+    } else {
+      flash = { type: "error", msg: "Something went wrong — please try again." };
+    }
+  }
+  req.session.teamFlash = flash;
+  res.redirect(`/${slug}`);
+});
+
 // Team public webpage — must be last so it doesn't swallow other routes
 app.get("/:slug", async (req, res) => {
   const { slug } = req.params;
@@ -763,8 +790,11 @@ app.get("/:slug", async (req, res) => {
   const host = req.headers.host;
   const calendarUrl = `https://${host}/calendar/${slug}.ics`;
 
+  const flash = req.session.teamFlash;
+  delete req.session.teamFlash;
+
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl));
+  res.send(teamPage(team, fixtures, calendarUrl, flash));
 });
 
 // --- Start ---

@@ -266,9 +266,28 @@ function teamPage(team, fixtures, calendarUrl) {
     }
 
     @media (max-width: 600px) {
-      .hero h1 { font-size: 2rem; }
-      .fixture-teams { display: none; }
-      .fixture-row { gap: 12px; }
+      .hero h1 { font-size: 2rem; letter-spacing: 2px; }
+      .hero p { font-size: 0.88rem; }
+
+      .fixture-row { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+
+      .fixture-date { min-width: 100px; }
+      .date-block .date-num { font-size: 1.5rem; }
+
+      .fixture-details { min-width: 130px; flex: 1; }
+
+      .fixture-teams {
+        flex: 0 0 100%;
+        border-top: 1px solid #333;
+        padding-top: 8px;
+        gap: 8px;
+        justify-content: center;
+      }
+      .team-name { font-size: 0.78rem; letter-spacing: 0.5px; }
+      .vs { font-size: 0.9rem; }
+
+      .section { padding: 0 12px; }
+      .month-header { padding: 10px 14px 6px; }
     }
   </style>
 </head>

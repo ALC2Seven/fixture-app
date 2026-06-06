@@ -73,6 +73,61 @@ async function requireTeamKey(req, res, next) {
 
 const fmt = iso => new Date(iso).toUTCString().replace(" GMT", " UTC");
 
+async function getSubscriberEmails(teamId) {
+  const { rows } = await pool.query("SELECT email FROM subscribers WHERE team_id = $1", [teamId]);
+  return rows.map(r => r.email);
+}
+
+async function sendCancellationEmails(team, fixture, cancelType) {
+  const emails = await getSubscriberEmails(team.id);
+  if (!emails.length) return 0;
+  const shown = cancelType === "shown";
+  await resend.emails.send({
+    from: "Fixture Updates <onboarding@resend.dev>",
+    to: emails,
+    subject: `Fixture Cancelled: ${fixture.summary}`,
+    html: `
+      <h2>Fixture Cancelled</h2>
+      <p><strong>${fixture.summary}</strong> scheduled for <strong>${fmt(fixture.start_time)}</strong> has been cancelled.</p>
+      ${shown
+        ? `<p style="color:#666">The fixture will remain visible on the fixtures page marked as cancelled.</p>`
+        : `<p style="color:#666">The fixture has been removed from the fixtures page and your calendar.</p>`}
+      <p style="color:#666;font-size:12px">Your calendar will update automatically. No action needed.</p>
+    `,
+  });
+  return emails.length;
+}
+
+async function sendVenueChangeEmails(team, fixture, oldVenue) {
+  const emails = await getSubscriberEmails(team.id);
+  if (!emails.length) return 0;
+  await resend.emails.send({
+    from: "Fixture Updates <onboarding@resend.dev>",
+    to: emails,
+    subject: `Venue Changed: ${fixture.summary}`,
+    html: `
+      <h2>Venue Change</h2>
+      <p>The venue for <strong>${fixture.summary}</strong> on <strong>${fmt(fixture.start_time)}</strong> has changed.</p>
+      <table style="border-collapse:collapse;font-family:sans-serif">
+        <tr>
+          <td style="padding:8px;color:#666">Was:</td>
+          <td style="padding:8px"><s>${oldVenue || "TBC"}</s></td>
+        </tr>
+        <tr>
+          <td style="padding:8px;color:#666">Now:</td>
+          <td style="padding:8px"><strong>${fixture.location || "TBC"}</strong></td>
+        </tr>
+        <tr>
+          <td style="padding:8px;color:#666">Date:</td>
+          <td style="padding:8px">${fmt(fixture.start_time)}</td>
+        </tr>
+      </table>
+      <p style="color:#666;font-size:12px">Your calendar invite has been updated automatically.</p>
+    `,
+  });
+  return emails.length;
+}
+
 async function sendRescheduleEmails(team, fixture, oldStart) {
   const { rows: subs } = await pool.query(
     "SELECT email FROM subscribers WHERE team_id = $1",
@@ -642,9 +697,12 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
 
   if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
 
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id=$1", [teamId]);
+  const emailsSent = await sendCancellationEmails(teams[0], rows[0], cancelType);
+
   const msg = cancelType === "shown"
-    ? "Fixture marked as cancelled — still visible on public page."
-    : "Fixture cancelled and hidden from public page.";
+    ? `Fixture marked as cancelled.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`
+    : `Fixture cancelled and hidden.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`;
   req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");
 });
@@ -652,22 +710,37 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
 // Edit fixture (opponent, home/away, venue, description)
 app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   const { uid, opponent, isHome, location, description } = req.body;
-  const { rows: teams } = await pool.query("SELECT name FROM teams WHERE id = $1", [req.user.team_id]);
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const teamName = teams[0].name;
+
+  // Fetch current fixture to detect venue change
+  const { rows: existing } = await pool.query("SELECT * FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, req.user.team_id]);
+  if (!existing.length) { req.session.flash = { type: "error", msg: "Fixture not found." }; return res.redirect("/dashboard"); }
+  const oldVenue = existing[0].location;
 
   const home = isHome === "true";
   const homeTeam = home ? teamName : opponent;
   const awayTeam = home ? opponent : teamName;
   const summary  = `${homeTeam} vs ${awayTeam}`;
+  const newVenue = location || null;
+  const venueChanged = (oldVenue || "") !== (newVenue || "");
 
   await pool.query(
     `UPDATE fixtures
      SET summary=$1, home_team=$2, away_team=$3, is_home=$4,
-         location=$5, description=$6, updated_at=NOW()
+         location=$5, description=$6, sequence=sequence+1, updated_at=NOW()
      WHERE uid=$7 AND team_id=$8`,
-    [summary, homeTeam, awayTeam, home, location || null, description || null, uid, req.user.team_id]
+    [summary, homeTeam, awayTeam, home, newVenue, description || null, uid, req.user.team_id]
   );
-  req.session.flash = { type: "success", msg: "Fixture updated." };
+
+  let emailsSent = 0;
+  if (venueChanged && newVenue) {
+    const { rows: updated } = await pool.query("SELECT * FROM fixtures WHERE uid=$1", [uid]);
+    emailsSent = await sendVenueChangeEmails(teams[0], updated[0], oldVenue);
+  }
+
+  const msg = `Fixture updated.${emailsSent ? ` ${emailsSent} subscriber(s) notified of venue change.` : ""}`;
+  req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");
 });
 

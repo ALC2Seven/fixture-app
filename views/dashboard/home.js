@@ -37,6 +37,8 @@ function homePage(user, team, fixtures, subscribers, flash) {
             class="btn btn-secondary btn-sm">Reschedule</button>
           <button onclick="openChangeOpponent('${f.uid}','${opponentName}','${isActuallyHome}')"
             class="btn btn-secondary btn-sm">Change Opponent</button>
+          <button onclick="openEdit('${f.uid}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}' )"
+            class="btn btn-secondary btn-sm">Edit Details</button>
           <form method="POST" action="/dashboard/fixtures/switch-home-away" style="display:inline">
             <input type="hidden" name="uid" value="${f.uid}">
             <button class="btn btn-secondary btn-sm">${isActuallyHome ? "→ Away" : "→ Home"}</button>
@@ -65,7 +67,32 @@ function homePage(user, team, fixtures, subscribers, flash) {
       <div class="stat"><div class="stat-value">${upcoming.length}</div><div class="stat-label">Upcoming</div></div>
       <div class="stat"><div class="stat-value">${past.length}</div><div class="stat-label">Past</div></div>
       <div class="stat"><div class="stat-value">${subscribers.length}</div><div class="stat-label">Subscribers</div></div>
-      <div class="stat"><div class="stat-value">${team.tier}</div><div class="stat-label">Plan</div></div>
+      <div class="stat"><div class="stat-value" style="text-transform:capitalize">${team.tier}</div><div class="stat-label">Plan</div></div>
+    </div>
+
+    <!-- Plan Management -->
+    <div class="card">
+      <div class="card-title">Your Plan</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div>
+          <div style="font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:2px">${team.tier}</div>
+          <div style="color:#666;font-size:0.82rem;margin-top:4px">
+            ${team.tier === 'free'
+              ? 'Public fixtures page only. Upgrade to Standard to unlock calendar feeds and email notifications.'
+              : team.tier === 'standard'
+              ? 'Live calendar feed + email notifications included.'
+              : 'Full Pro access — all features included.'}
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${team.tier === 'free'
+            ? `<a href="/pricing" class="btn btn-primary">Upgrade Plan</a>`
+            : team.tier === 'standard'
+            ? `<a href="/pricing" class="btn btn-primary">Upgrade to Pro</a>
+               <a href="/pricing" class="btn btn-secondary">View Plans</a>`
+            : `<a href="/pricing" class="btn btn-secondary">View Plans</a>`}
+        </div>
+      </div>
     </div>
 
     <!-- Import Fixtures -->
@@ -253,6 +280,17 @@ function homePage(user, team, fixtures, subscribers, flash) {
         document.getElementById('reschedule-modal').style.display = 'none';
       }
 
+      // Edit details modal
+      function openEdit(uid, location, description) {
+        document.getElementById('edit-uid').value = uid;
+        document.getElementById('edit-location').value = location;
+        document.getElementById('edit-description').value = description;
+        document.getElementById('edit-modal').style.display = 'flex';
+      }
+      function closeEdit() {
+        document.getElementById('edit-modal').style.display = 'none';
+      }
+
       // Change opponent modal
       function openChangeOpponent(uid, opponentName, isHome) {
         document.getElementById('opponent-uid').value = uid;
@@ -274,6 +312,29 @@ function homePage(user, team, fixtures, subscribers, flash) {
         document.getElementById('cancel-modal').style.display = 'none';
       }
     </script>
+
+    <!-- Edit Details Modal -->
+    <div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:460px;max-width:90vw">
+        <div class="card-title">Edit Fixture Details</div>
+        <p style="color:#aaa;font-size:0.82rem;margin-bottom:16px">Update venue or competition without rescheduling.</p>
+        <form method="POST" action="/dashboard/fixtures/edit">
+          <input type="hidden" name="uid" id="edit-uid">
+          <div class="form-group" style="margin-bottom:14px">
+            <label>Venue</label>
+            <input type="text" name="location" id="edit-location" placeholder="e.g. Riverside Stadium">
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Competition / Description</label>
+            <input type="text" name="description" id="edit-description" placeholder="e.g. Premier League — Matchday 3">
+          </div>
+          <div style="display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" onclick="closeEdit()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Change Opponent Modal -->
     <div id="opponent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">

@@ -649,6 +649,17 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
   res.redirect("/dashboard");
 });
 
+// Edit fixture details (venue, description)
+app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
+  const { uid, location, description } = req.body;
+  await pool.query(
+    `UPDATE fixtures SET location=$1, description=$2, updated_at=NOW() WHERE uid=$3 AND team_id=$4`,
+    [location || null, description || null, uid, req.user.team_id]
+  );
+  req.session.flash = { type: "success", msg: "Fixture details updated." };
+  res.redirect("/dashboard");
+});
+
 // Restore a cancelled fixture
 app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
   const { uid } = req.body;

@@ -147,6 +147,28 @@ async function initDb() {
     );
   `);
 
+  // Family members (children/players) a guardian fan account responds for
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS family_members (
+      id          SERIAL PRIMARY KEY,
+      fan_user_id INTEGER REFERENCES fan_users(id) ON DELETE CASCADE,
+      name        VARCHAR(100) NOT NULL,
+      created_at  TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // Availability becomes per-person: one row per (event, email, family member).
+  // family_member_id NULL = the account holder themselves. The old
+  // UNIQUE(fixture_id, email) is replaced by an expression index so a guardian
+  // can hold one response per child plus one of their own.
+  await pool.query(`
+    ALTER TABLE availability
+      ADD COLUMN IF NOT EXISTS family_member_id INTEGER REFERENCES family_members(id) ON DELETE CASCADE;
+    ALTER TABLE availability DROP CONSTRAINT IF EXISTS availability_fixture_id_email_key;
+    CREATE UNIQUE INDEX IF NOT EXISTS availability_person_unique
+      ON availability (fixture_id, email, COALESCE(family_member_id, 0));
+  `);
+
   console.log("Database ready");
 }
 

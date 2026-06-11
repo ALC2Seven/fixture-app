@@ -55,8 +55,13 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
             copyable signed links (/dashboard/members), last-owner protection.
       - [ ] Multi-squad clubs (one club, many teams) with per-squad delegation.
       - [ ] Welfare/safeguarding officer role (with guardian work below).
-- [ ] Guardian-linked accounts: parental visibility of child comms, family-level RSVP,
-      consent/document capture, audit logs, merged family view across children/teams.
+- [~] Guardian-linked accounts:
+      - [x] Family members on fan accounts (My Teams → My Family, up to 10);
+            per-person Going/Maybe/Can't rows on team pages; availability stored
+            per (event, email, family member); coach roll-up shows player names
+            with the guardian email ("Alfie via parent@…").
+      - [ ] Consent/document capture, audit logs, parental comms visibility,
+            merged family view across teams.
 - [ ] Matchday layer: line-ups, results, scorers, simple league table, match reports.
       (Deeper stats engine later, tiered.)
 - [ ] WhatsApp channel (Cloud API): opt-in outbound notifications, template messages,

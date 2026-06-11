@@ -1,6 +1,7 @@
 const { fanLayout } = require("./layout");
 
-function fanDashboardPage(fanUser, subscriptions, flash) {
+function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
+  familyMembers = familyMembers || [];
   const rows = subscriptions.length ? subscriptions.map(s => {
     const icsUrl     = `https://${s.calendar_host}/calendar/${s.team_slug}.ics`;
     const webcalUrl  = `webcal://${s.calendar_host}/calendar/${s.team_slug}.ics`;
@@ -39,6 +40,30 @@ function fanDashboardPage(fanUser, subscriptions, flash) {
     <div class="card">
       <div class="card-title">Your Subscriptions (${subscriptions.length})</div>
       ${rows}
+    </div>
+
+    <div class="card">
+      <div class="card-title">My Family</div>
+      <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:16px">
+        Add the children or players you respond for. On any team page you'll get
+        separate Going / Maybe / Can't buttons for each person — the coach sees who's coming by name.
+      </p>
+      ${familyMembers.length ? familyMembers.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+          <span style="font-weight:700;font-size:0.9rem">👤 ${m.name}</span>
+          <form method="POST" action="/fan/family/remove" onsubmit="return confirm('Remove ${m.name.replace(/'/g, "\\'")}? Their availability responses will be cleared.')">
+            <input type="hidden" name="memberId" value="${m.id}">
+            <button class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Remove</button>
+          </form>
+        </div>
+      `).join("") : ""}
+      <form method="POST" action="/fan/family/add" style="display:flex;gap:10px;align-items:flex-end;margin-top:${familyMembers.length ? "14px" : "0"}">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label>Name</label>
+          <input type="text" name="name" required maxlength="100" placeholder="e.g. Alfie">
+        </div>
+        <button type="submit" class="btn btn-primary">Add</button>
+      </form>
     </div>
     <p style="color:var(--text-4);font-size:0.78rem;text-align:center">
       Your email <strong style="color:var(--text-3)">${fanUser.email}</strong> receives alerts when subscribed teams reschedule or cancel fixtures.

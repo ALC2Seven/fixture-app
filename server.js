@@ -642,18 +642,24 @@ app.get("/dashboard/availability/:uid", requireLogin, async (req, res) => {
   const event = events[0];
 
   const { rows: responses } = await pool.query(
-    "SELECT * FROM availability WHERE fixture_id = $1 ORDER BY status, email", [event.id]
+    `SELECT a.*, fm.name AS member_name
+     FROM availability a LEFT JOIN family_members fm ON fm.id = a.family_member_id
+     WHERE a.fixture_id = $1 ORDER BY a.status, fm.name NULLS FIRST, a.email`, [event.id]
   );
 
   const { layout } = require("./views/dashboard/layout");
   const groups = { going: [], maybe: [], no: [] };
   responses.forEach(r => (groups[r.status] || groups.no).push(r));
 
+  const who = r => r.member_name
+    ? `<strong>${r.member_name}</strong> <span style="color:var(--text-4);font-size:0.75rem">via ${r.email}</span>`
+    : r.email;
+
   const groupHtml = (label, color, list) => `
     <div class="card">
       <div class="card-title" style="color:${color}">${label} (${list.length})</div>
       ${list.length ? `<table><tbody>${list.map(r => `
-        <tr><td>${r.email}</td><td style="color:var(--text-3)">${r.note || ""}</td>
+        <tr><td>${who(r)}</td><td style="color:var(--text-3)">${r.note || ""}</td>
         <td style="color:var(--text-4);font-size:0.75rem">${new Date(r.updated_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
       </tbody></table>` : `<p style="color:var(--text-4);font-size:0.85rem">No responses.</p>`}
     </div>`;
@@ -1433,9 +1439,13 @@ app.get("/my-teams", async (req, res) => {
   const host = req.headers.host;
   const subs = rows.map(r => ({ ...r, calendar_host: host }));
 
+  const { rows: familyMembers } = await pool.query(
+    "SELECT * FROM family_members WHERE fan_user_id = $1 ORDER BY created_at", [req.fanUser.id]
+  );
+
   const flash = req.session.fanFlash;
   delete req.session.fanFlash;
-  res.send(fanDashboardPage(req.fanUser, subs, flash));
+  res.send(fanDashboardPage(req.fanUser, subs, flash, familyMembers));
 });
 
 app.post("/fan/unsubscribe", async (req, res) => {
@@ -1445,6 +1455,33 @@ app.post("/fan/unsubscribe", async (req, res) => {
     [req.fanUser.id, req.body.teamId]
   );
   req.session.fanFlash = { type: "success", msg: "You've been unsubscribed." };
+  res.redirect("/my-teams");
+});
+
+// Family members — guardians add the children/players they respond for
+app.post("/fan/family/add", async (req, res) => {
+  if (!req.fanUser) return res.redirect("/fan/login");
+  const name = (req.body.name || "").trim();
+  if (!name) {
+    req.session.fanFlash = { type: "error", msg: "Please enter a name." };
+    return res.redirect("/my-teams");
+  }
+  const { rows: count } = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM family_members WHERE fan_user_id = $1", [req.fanUser.id]);
+  if (count[0].n >= 10) {
+    req.session.fanFlash = { type: "error", msg: "You can add up to 10 family members." };
+    return res.redirect("/my-teams");
+  }
+  await pool.query("INSERT INTO family_members (fan_user_id, name) VALUES ($1, $2)", [req.fanUser.id, name]);
+  req.session.fanFlash = { type: "success", msg: `${name} added to your family.` };
+  res.redirect("/my-teams");
+});
+
+app.post("/fan/family/remove", async (req, res) => {
+  if (!req.fanUser) return res.redirect("/fan/login");
+  await pool.query("DELETE FROM family_members WHERE id = $1 AND fan_user_id = $2",
+    [req.body.memberId, req.fanUser.id]);
+  req.session.fanFlash = { type: "success", msg: "Family member removed (their availability responses were cleared)." };
   res.redirect("/my-teams");
 });
 
@@ -1509,7 +1546,7 @@ app.get("/rsvp", async (req, res) => {
   await pool.query(
     `INSERT INTO availability (fixture_id, email, fan_user_id, status, updated_at)
      VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (fixture_id, email)
+     ON CONFLICT (fixture_id, email, COALESCE(family_member_id, 0))
      DO UPDATE SET status = $4, fan_user_id = COALESCE($3, availability.fan_user_id), updated_at = NOW()`,
     [event.id, email, fanId, status]
   );
@@ -1539,13 +1576,23 @@ app.get("/rsvp", async (req, res) => {
     </body></html>`);
 });
 
-// One-tap RSVP from the public team page (logged-in fans)
+// One-tap RSVP from the public team page (logged-in fans, optionally for a family member)
 app.post("/:slug/rsvp", async (req, res) => {
   const { slug } = req.params;
-  const { uid, status, note } = req.body;
+  const { uid, status, note, familyMemberId } = req.body;
 
   if (!req.fanUser) return res.redirect(`/fan/login?returnTo=/${slug}`);
   if (!["going", "maybe", "no"].includes(status)) return res.redirect(`/${slug}`);
+
+  // If responding for a family member, verify it belongs to this guardian
+  let fmId = null;
+  if (familyMemberId) {
+    const { rows: fm } = await pool.query(
+      "SELECT id FROM family_members WHERE id = $1 AND fan_user_id = $2",
+      [familyMemberId, req.fanUser.id]);
+    if (!fm.length) return res.redirect(`/${slug}`);
+    fmId = fm[0].id;
+  }
 
   const { rows } = await pool.query(
     `SELECT f.id FROM fixtures f JOIN teams t ON t.id = f.team_id
@@ -1553,11 +1600,11 @@ app.post("/:slug/rsvp", async (req, res) => {
   );
   if (rows.length) {
     await pool.query(
-      `INSERT INTO availability (fixture_id, email, fan_user_id, status, note, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (fixture_id, email)
-       DO UPDATE SET status = $4, note = $5, fan_user_id = $3, updated_at = NOW()`,
-      [rows[0].id, req.fanUser.email, req.fanUser.id, status, note || null]
+      `INSERT INTO availability (fixture_id, email, fan_user_id, family_member_id, status, note, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (fixture_id, email, COALESCE(family_member_id, 0))
+       DO UPDATE SET status = $5, note = $6, fan_user_id = $3, updated_at = NOW()`,
+      [rows[0].id, req.fanUser.email, req.fanUser.id, fmId, status, note || null]
     );
   }
   res.redirect(`/${slug}`);
@@ -1582,6 +1629,7 @@ app.get("/:slug", async (req, res) => {
   // Check if logged-in fan is already subscribed to this team
   let isSubscribed = false;
   let rsvpMap = {};
+  let familyMembers = [];
   if (req.fanUser) {
     const { rows: sub } = await pool.query(
       "SELECT id FROM subscribers WHERE team_id = $1 AND fan_user_id = $2",
@@ -1589,12 +1637,21 @@ app.get("/:slug", async (req, res) => {
     );
     isSubscribed = sub.length > 0;
 
-    // This fan's RSVP per event: { uid: status }
+    const { rows: fam } = await pool.query(
+      "SELECT * FROM family_members WHERE fan_user_id = $1 ORDER BY created_at", [req.fanUser.id]
+    );
+    familyMembers = fam;
+
+    // This household's RSVPs per event: { uid: { '0': status, '<familyMemberId>': status } }
     const { rows: rsvps } = await pool.query(
-      `SELECT f.uid, a.status FROM availability a JOIN fixtures f ON f.id = a.fixture_id
+      `SELECT f.uid, a.status, a.family_member_id
+       FROM availability a JOIN fixtures f ON f.id = a.fixture_id
        WHERE f.team_id = $1 AND a.email = $2`, [team.id, req.fanUser.email]
     );
-    rsvps.forEach(r => { rsvpMap[r.uid] = r.status; });
+    rsvps.forEach(r => {
+      rsvpMap[r.uid] = rsvpMap[r.uid] || {};
+      rsvpMap[r.uid][String(r.family_member_id || 0)] = r.status;
+    });
   }
 
   // Public going-count per event: { uid: n }
@@ -1610,7 +1667,7 @@ app.get("/:slug", async (req, res) => {
   delete req.session.teamFlash;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts));
+  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers));
 });
 
 // --- Start ---

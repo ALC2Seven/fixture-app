@@ -42,27 +42,41 @@ function formatDate(date) {
   };
 }
 
-// RSVP button strip for an upcoming event (logged-in fans only)
+// RSVP button strip for an upcoming event (logged-in fans only).
+// One row per person: the account holder plus each family member.
 function rsvpStrip(fixture, ctx) {
   if (!ctx || !ctx.fanUser) return "";
   if (fixture.status && fixture.status.startsWith("cancelled")) return "";
   if (new Date(fixture.start_time) < new Date()) return "";
 
-  const current = ctx.rsvpMap[fixture.uid];
+  const responses = ctx.rsvpMap[fixture.uid] || {};
   const going = ctx.goingCounts[fixture.uid] || 0;
-  const btn = (status, label, cls) => `
+  const family = ctx.familyMembers || [];
+
+  const people = [
+    { id: 0, label: family.length ? "You" : "Your availability:" },
+    ...family.map(m => ({ id: m.id, label: m.name })),
+  ];
+
+  const btn = (personId, status, label, cls) => `
     <form method="POST" action="/${ctx.slug}/rsvp" style="display:inline">
       <input type="hidden" name="uid" value="${fixture.uid}">
       <input type="hidden" name="status" value="${status}">
-      <button type="submit" class="rsvp-btn ${cls} ${current === status ? "rsvp-on" : ""}">${label}</button>
+      ${personId ? `<input type="hidden" name="familyMemberId" value="${personId}">` : ""}
+      <button type="submit" class="rsvp-btn ${cls} ${responses[String(personId)] === status ? "rsvp-on" : ""}">${label}</button>
     </form>`;
 
+  const rows = people.map(p => `
+    <div class="rsvp-person">
+      <span class="rsvp-label">${p.label}</span>
+      ${btn(p.id, "going", "✓ Going", "rsvp-going")}
+      ${btn(p.id, "maybe", "? Maybe", "rsvp-maybe")}
+      ${btn(p.id, "no", "✗ Can't", "rsvp-no")}
+    </div>`).join("");
+
   return `
-    <div class="fx-rsvp">
-      <span class="rsvp-label">Your availability:</span>
-      ${btn("going", "✓ Going", "rsvp-going")}
-      ${btn("maybe", "? Maybe", "rsvp-maybe")}
-      ${btn("no", "✗ Can't", "rsvp-no")}
+    <div class="fx-rsvp ${family.length ? "fx-rsvp-family" : ""}">
+      ${rows}
       ${going > 0 ? `<span class="rsvp-count">${going} going</span>` : ""}
     </div>`;
 }
@@ -176,8 +190,8 @@ function buildTabs(fixtures, theme) {
   `;
 }
 
-function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts) {
-  const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {} };
+function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers) {
+  const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {}, familyMembers: familyMembers || [] };
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
@@ -362,7 +376,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       justify-content: center; flex-wrap: wrap;
       margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
     }
-    .rsvp-label { font-size: 0.66rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; }
+    .fx-rsvp-family { flex-direction: column; gap: 6px; }
+    .rsvp-person { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .fx-rsvp-family .rsvp-label { min-width: 90px; text-align: right; }
+    .rsvp-label { font-size: 0.66rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
     .rsvp-btn {
       background: transparent; border: 1px solid var(--border); color: var(--text-3);
       font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px;

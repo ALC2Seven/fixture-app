@@ -1,14 +1,16 @@
 const { layout } = require("./layout");
 
 function settingsPage(user, team, flash) {
+  const isOwner = ["owner", "master"].includes(user.role);
   const content = `
     ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
 
     <div class="page-header">
       <h1>Settings</h1>
-      <p>Manage your club details and account.</p>
+      <p>${isOwner ? "Manage your club details and account." : "Manage your account. Club settings are managed by the club owner."}</p>
     </div>
 
+    ${isOwner ? `
     <!-- Club Details -->
     <div class="card">
       <div class="card-title">Club Details</div>
@@ -48,6 +50,7 @@ function settingsPage(user, team, flash) {
         <button type="submit" class="btn btn-primary">Save Home Ground</button>
       </form>
     </div>
+    ` : ""}
 
     <!-- Account -->
     <div class="card">
@@ -61,6 +64,7 @@ function settingsPage(user, team, flash) {
       </form>
     </div>
 
+    ${isOwner ? `
     <!-- Theme -->
     <div class="card">
       <div class="card-title">Appearance</div>
@@ -112,6 +116,7 @@ function settingsPage(user, team, flash) {
         <button type="submit" class="btn btn-primary">Save Social Links</button>
       </form>
     </div>
+    ` : ""}
 
     <!-- Change Password -->
     <div class="card">

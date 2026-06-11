@@ -313,7 +313,7 @@ app.post("/signup", async (req, res) => {
     // Create user
     const passwordHash = await bcrypt.hash(password, 10);
     const { rows: userRows } = await pool.query(
-      "INSERT INTO users (email, password_hash, team_id, role) VALUES ($1, $2, $3, 'admin') RETURNING *",
+      "INSERT INTO users (email, password_hash, team_id, role) VALUES ($1, $2, $3, 'owner') RETURNING *",
       [email.toLowerCase().trim(), passwordHash, team.id]
     );
     const user = userRows[0];
@@ -548,6 +548,16 @@ app.post("/admin/users", requireMasterKey, async (req, res) => {
 function requireLogin(req, res, next) {
   if (!req.session.userId) return res.redirect("/dashboard/login");
   next();
+}
+
+// Role guard — use after requireLogin. 'master' always passes.
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) return res.redirect("/dashboard/login");
+    if (req.user.role === "master" || roles.includes(req.user.role)) return next();
+    req.session.flash = { type: "error", msg: "You don't have permission to do that." };
+    return res.redirect("/dashboard");
+  };
 }
 
 async function loadSessionUser(req, res, next) {
@@ -952,7 +962,7 @@ app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
 });
 
 // Messages page — compose + history
-app.get("/dashboard/messages", requireLogin, async (req, res) => {
+app.get("/dashboard/messages", requireLogin, requireRole("owner", "manager"), async (req, res) => {
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const team = teams[0];
   const { rows: announcements } = await pool.query(
@@ -967,7 +977,7 @@ app.get("/dashboard/messages", requireLogin, async (req, res) => {
 });
 
 // Send an announcement to all subscribers
-app.post("/dashboard/messages/send", requireLogin, async (req, res) => {
+app.post("/dashboard/messages/send", requireLogin, requireRole("owner", "manager"), async (req, res) => {
   const { subject, body } = req.body;
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const team = teams[0];
@@ -1024,8 +1034,161 @@ app.post("/dashboard/messages/send", requireLogin, async (req, res) => {
   res.redirect("/dashboard/messages");
 });
 
+// --- Team members & invitations (owner only) ---
+
+const INVITABLE_ROLES = ["owner", "manager", "coach"];
+
+app.get("/dashboard/members", requireLogin, requireRole("owner"), async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const { rows: members } = await pool.query(
+    "SELECT id, email, role, created_at FROM users WHERE team_id = $1 ORDER BY created_at", [req.user.team_id]
+  );
+  const { rows: invites } = await pool.query(
+    "SELECT * FROM invites WHERE team_id = $1 AND accepted_at IS NULL ORDER BY created_at DESC", [req.user.team_id]
+  );
+  const flash = req.session.flash; delete req.session.flash;
+  const { membersPage } = require("./views/dashboard/members");
+  res.send(membersPage(req.user, teams[0], members, invites, flash, APP_URL));
+});
+
+app.post("/dashboard/members/invite", requireLogin, requireRole("owner"), async (req, res) => {
+  const { email, role } = req.body;
+  const cleanEmail = (email || "").toLowerCase().trim();
+  const cleanRole = INVITABLE_ROLES.includes(role) ? role : "coach";
+
+  if (!cleanEmail) {
+    req.session.flash = { type: "error", msg: "Email is required." };
+    return res.redirect("/dashboard/members");
+  }
+  const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [cleanEmail]);
+  if (existing.length) {
+    req.session.flash = { type: "error", msg: "An account with that email already exists." };
+    return res.redirect("/dashboard/members");
+  }
+  // Replace any previous pending invite for this email+team
+  await pool.query("DELETE FROM invites WHERE team_id = $1 AND email = $2 AND accepted_at IS NULL",
+    [req.user.team_id, cleanEmail]);
+
+  const token = nodeCrypto.randomBytes(24).toString("hex");
+  await pool.query(
+    "INSERT INTO invites (team_id, email, role, token, invited_by) VALUES ($1, $2, $3, $4, $5)",
+    [req.user.team_id, cleanEmail, cleanRole, token, req.user.id]
+  );
+
+  const { rows: teams } = await pool.query("SELECT name FROM teams WHERE id = $1", [req.user.team_id]);
+  const inviteUrl = `${APP_URL}/invite/${token}`;
+
+  // Best-effort email; the link is always shown on the members page too
+  try {
+    await resend.emails.send({
+      from: "Fixture Updates <onboarding@resend.dev>",
+      to: cleanEmail,
+      subject: `You've been invited to help run ${teams[0].name} on FixtureApp`,
+      html: `
+        <h2>You're invited</h2>
+        <p><strong>${req.user.email}</strong> has invited you to join <strong>${teams[0].name}</strong>
+           on FixtureApp as a <strong>${cleanRole}</strong>.</p>
+        <p><a href="${inviteUrl}" style="display:inline-block;background:#cc0000;color:#fff;text-decoration:none;font-weight:bold;padding:12px 24px;border-radius:6px">Accept invitation</a></p>
+        <p style="color:#666;font-size:12px">Or paste this link into your browser: ${inviteUrl}</p>
+      `,
+    });
+  } catch (e) {
+    console.error("[invite] email failed:", e.message);
+  }
+
+  req.session.flash = { type: "success", msg: `Invite created for ${cleanEmail} — the link is shown below if you'd rather share it yourself.` };
+  res.redirect("/dashboard/members");
+});
+
+app.post("/dashboard/members/cancel-invite", requireLogin, requireRole("owner"), async (req, res) => {
+  await pool.query("DELETE FROM invites WHERE id = $1 AND team_id = $2 AND accepted_at IS NULL",
+    [req.body.inviteId, req.user.team_id]);
+  req.session.flash = { type: "success", msg: "Invite cancelled." };
+  res.redirect("/dashboard/members");
+});
+
+app.post("/dashboard/members/role", requireLogin, requireRole("owner"), async (req, res) => {
+  const { userId, role } = req.body;
+  if (!INVITABLE_ROLES.includes(role)) return res.redirect("/dashboard/members");
+
+  const { rows: target } = await pool.query(
+    "SELECT * FROM users WHERE id = $1 AND team_id = $2", [userId, req.user.team_id]);
+  if (!target.length) return res.redirect("/dashboard/members");
+
+  // Never demote the last owner
+  if (target[0].role === "owner" && role !== "owner") {
+    const { rows: owners } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM users WHERE team_id = $1 AND role = 'owner'", [req.user.team_id]);
+    if (owners[0].n <= 1) {
+      req.session.flash = { type: "error", msg: "A club must always have at least one owner." };
+      return res.redirect("/dashboard/members");
+    }
+  }
+  await pool.query("UPDATE users SET role = $1 WHERE id = $2", [role, userId]);
+  req.session.flash = { type: "success", msg: "Role updated." };
+  res.redirect("/dashboard/members");
+});
+
+app.post("/dashboard/members/remove", requireLogin, requireRole("owner"), async (req, res) => {
+  const { userId } = req.body;
+  if (Number(userId) === req.user.id) {
+    req.session.flash = { type: "error", msg: "You can't remove yourself." };
+    return res.redirect("/dashboard/members");
+  }
+  const { rows: target } = await pool.query(
+    "SELECT * FROM users WHERE id = $1 AND team_id = $2", [userId, req.user.team_id]);
+  if (target.length && target[0].role === "owner") {
+    const { rows: owners } = await pool.query(
+      "SELECT COUNT(*)::int AS n FROM users WHERE team_id = $1 AND role = 'owner'", [req.user.team_id]);
+    if (owners[0].n <= 1) {
+      req.session.flash = { type: "error", msg: "A club must always have at least one owner." };
+      return res.redirect("/dashboard/members");
+    }
+  }
+  await pool.query("DELETE FROM users WHERE id = $1 AND team_id = $2", [userId, req.user.team_id]);
+  req.session.flash = { type: "success", msg: "Member removed." };
+  res.redirect("/dashboard/members");
+});
+
+// Accept an invitation (public — token is the credential)
+app.get("/invite/:token", async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT i.*, t.name AS team_name FROM invites i JOIN teams t ON t.id = i.team_id
+     WHERE i.token = $1 AND i.accepted_at IS NULL`, [req.params.token]);
+  if (!rows.length) return res.status(404).send("This invitation is no longer valid.");
+  const { invitePage } = require("./views/dashboard/invite");
+  res.send(invitePage(rows[0], null));
+});
+
+app.post("/invite/:token", async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT i.*, t.name AS team_name FROM invites i JOIN teams t ON t.id = i.team_id
+     WHERE i.token = $1 AND i.accepted_at IS NULL`, [req.params.token]);
+  if (!rows.length) return res.status(404).send("This invitation is no longer valid.");
+  const invite = rows[0];
+  const { invitePage } = require("./views/dashboard/invite");
+
+  const { password, confirmPassword } = req.body;
+  if (!password || password.length < 8) return res.send(invitePage(invite, "Password must be at least 8 characters."));
+  if (password !== confirmPassword) return res.send(invitePage(invite, "Passwords do not match."));
+
+  const { rows: existing } = await pool.query("SELECT id FROM users WHERE email = $1", [invite.email]);
+  if (existing.length) return res.send(invitePage(invite, "An account with this email already exists."));
+
+  const hash = await bcrypt.hash(password, 10);
+  const { rows: userRows } = await pool.query(
+    "INSERT INTO users (email, password_hash, team_id, role) VALUES ($1, $2, $3, $4) RETURNING *",
+    [invite.email, hash, invite.team_id, invite.role]
+  );
+  await pool.query("UPDATE invites SET accepted_at = NOW() WHERE id = $1", [invite.id]);
+
+  req.session.userId = userRows[0].id;
+  req.session.flash = { type: "success", msg: `Welcome to ${invite.team_name}!` };
+  res.redirect("/dashboard");
+});
+
 // Subscribers page
-app.get("/dashboard/subscribers", requireLogin, async (req, res) => {
+app.get("/dashboard/subscribers", requireLogin, requireRole("owner", "manager"), async (req, res) => {
   const { rows: subs } = await pool.query(
     "SELECT * FROM subscribers WHERE team_id = $1 ORDER BY created_at DESC", [req.user.team_id]
   );
@@ -1055,7 +1218,7 @@ app.get("/dashboard/subscribers", requireLogin, async (req, res) => {
   res.send(layout("Subscribers", content, req.user));
 });
 
-app.post("/dashboard/subscribers/add", requireLogin, async (req, res) => {
+app.post("/dashboard/subscribers/add", requireLogin, requireRole("owner", "manager"), async (req, res) => {
   const { email } = req.body;
   try {
     await pool.query("INSERT INTO subscribers (team_id, email) VALUES ($1,$2)", [req.user.team_id, email]);
@@ -1075,7 +1238,7 @@ app.get("/dashboard/settings", requireLogin, async (req, res) => {
 });
 
 // Update club name
-app.post("/dashboard/settings/club", requireLogin, async (req, res) => {
+app.post("/dashboard/settings/club", requireLogin, requireRole("owner"), async (req, res) => {
   const { clubName } = req.body;
   if (!clubName?.trim()) { req.session.flash = { type: "error", msg: "Club name cannot be empty." }; return res.redirect("/dashboard/settings"); }
   await pool.query("UPDATE teams SET name=$1 WHERE id=$2", [clubName.trim(), req.user.team_id]);
@@ -1084,7 +1247,7 @@ app.post("/dashboard/settings/club", requireLogin, async (req, res) => {
 });
 
 // Update home venue
-app.post("/dashboard/settings/home-venue", requireLogin, async (req, res) => {
+app.post("/dashboard/settings/home-venue", requireLogin, requireRole("owner"), async (req, res) => {
   const { homeVenue, applyToAll } = req.body;
   const venue = homeVenue?.trim() || null;
   await pool.query("UPDATE teams SET home_venue=$1 WHERE id=$2", [venue, req.user.team_id]);
@@ -1129,7 +1292,7 @@ app.post("/dashboard/settings/password", requireLogin, async (req, res) => {
 });
 
 // Update theme
-app.post("/dashboard/settings/theme", requireLogin, async (req, res) => {
+app.post("/dashboard/settings/theme", requireLogin, requireRole("owner"), async (req, res) => {
   const theme = req.body.theme === "light" ? "light" : "dark";
   await pool.query("UPDATE teams SET theme=$1 WHERE id=$2", [theme, req.user.team_id]);
   req.session.flash = { type: "success", msg: `Theme switched to ${theme} mode.` };
@@ -1137,7 +1300,7 @@ app.post("/dashboard/settings/theme", requireLogin, async (req, res) => {
 });
 
 // Update social media links
-app.post("/dashboard/settings/social", requireLogin, async (req, res) => {
+app.post("/dashboard/settings/social", requireLogin, requireRole("owner"), async (req, res) => {
   const { facebookUrl, instagramUrl, tiktokUrl } = req.body;
   const clean = (v) => (v || "").trim() || null;
   await pool.query(
@@ -1148,7 +1311,7 @@ app.post("/dashboard/settings/social", requireLogin, async (req, res) => {
   res.redirect("/dashboard/settings");
 });
 
-app.post("/dashboard/subscribers/remove", requireLogin, async (req, res) => {
+app.post("/dashboard/subscribers/remove", requireLogin, requireRole("owner", "manager"), async (req, res) => {
   await pool.query("DELETE FROM subscribers WHERE team_id=$1 AND email=$2", [req.user.team_id, req.body.email]);
   req.session.flash = { type: "success", msg: "Subscriber removed." };
   res.redirect("/dashboard/subscribers");

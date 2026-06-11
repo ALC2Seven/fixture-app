@@ -48,9 +48,13 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
 
 ## Phase 2 — Structure and trust
 
-- [ ] Roles & hierarchy: club owner, club admin, welfare officer, coach, team manager,
-      parent/guardian, player, supporter. Permissions at club / squad / event level.
-      Multi-team clubs with delegated management.
+- [~] Roles & hierarchy:
+      - [x] Club-level roles: owner / manager / coach with permission guards
+            (settings+members = owner; messages+subscribers = owner+manager;
+            fixtures/events/availability = all). Invite flow with emailed +
+            copyable signed links (/dashboard/members), last-owner protection.
+      - [ ] Multi-squad clubs (one club, many teams) with per-squad delegation.
+      - [ ] Welfare/safeguarding officer role (with guardian work below).
 - [ ] Guardian-linked accounts: parental visibility of child comms, family-level RSVP,
       consent/document capture, audit logs, merged family view across children/teams.
 - [ ] Matchday layer: line-ups, results, scorers, simple league table, match reports.

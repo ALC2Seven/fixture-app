@@ -103,6 +103,24 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
   `);
 
+  // Roles: owner (club creator), manager (fixtures+comms), coach (fixtures only), master (platform).
+  // Legacy 'admin' rows become owners — safe to re-run because nothing creates 'admin' anymore.
+  await pool.query(`UPDATE users SET role='owner' WHERE role='admin';`);
+
+  // Pending invitations to join a club's dashboard
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS invites (
+      id          SERIAL PRIMARY KEY,
+      team_id     INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      email       VARCHAR(200) NOT NULL,
+      role        VARCHAR(20) NOT NULL DEFAULT 'coach',
+      token       VARCHAR(80) UNIQUE NOT NULL,
+      invited_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at  TIMESTAMP DEFAULT NOW(),
+      accepted_at TIMESTAMP
+    );
+  `);
+
   // Announcement broadcasts from club to subscribers (log retained for auditability)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS announcements (

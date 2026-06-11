@@ -175,19 +175,24 @@ function layout(title, content, user) {
     </div>
   </nav>
   <div class="shell">
-    ${user ? `
+    ${user ? (() => {
+      const canComms  = ["owner", "manager", "master"].includes(user.role);
+      const isOwner   = ["owner", "master"].includes(user.role);
+      return `
     <nav class="sidebar">
       <div class="sidebar-section">Club</div>
       <a href="/dashboard">📋 Fixtures</a>
-      <a href="/dashboard/subscribers">👥 Subscribers</a>
-      <a href="/dashboard/messages">📣 Messages</a>
+      ${canComms ? `<a href="/dashboard/subscribers">👥 Subscribers</a>` : ""}
+      ${canComms ? `<a href="/dashboard/messages">📣 Messages</a>` : ""}
       <a href="/dashboard/feed">📅 Calendar Feed</a>
+      ${isOwner ? `<a href="/dashboard/members">🤝 Members</a>` : ""}
       <a href="/dashboard/settings">⚙️ Settings</a>
       ${user.role === "master" ? `
       <div class="sidebar-section" style="margin-top:16px">Master</div>
       <a href="/dashboard/master">🏢 All Teams</a>
       ` : ""}
-    </nav>` : ""}
+    </nav>`;
+    })() : ""}
     <main class="main">
       ${content}
     </main>

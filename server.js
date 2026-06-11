@@ -510,9 +510,61 @@ app.get("/dashboard", requireLogin, async (req, res) => {
     "SELECT * FROM subscribers WHERE team_id = $1", [team.id]
   );
 
+  // Availability roll-up per event: { uid: { going, maybe, no } }
+  const { rows: availRows } = await pool.query(
+    `SELECT f.uid, a.status, COUNT(*)::int AS n
+     FROM availability a JOIN fixtures f ON f.id = a.fixture_id
+     WHERE f.team_id = $1 GROUP BY f.uid, a.status`, [team.id]
+  );
+  const availability = {};
+  for (const r of availRows) {
+    availability[r.uid] = availability[r.uid] || { going: 0, maybe: 0, no: 0 };
+    if (availability[r.uid][r.status] !== undefined) availability[r.uid][r.status] = r.n;
+  }
+
   const flash = req.session.flash;
   delete req.session.flash;
-  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue));
+  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue, availability));
+});
+
+// Availability detail for one event — who responded what
+app.get("/dashboard/availability/:uid", requireLogin, async (req, res) => {
+  const { rows: events } = await pool.query(
+    "SELECT * FROM fixtures WHERE uid = $1 AND team_id = $2", [req.params.uid, req.user.team_id]
+  );
+  if (!events.length) return res.redirect("/dashboard");
+  const event = events[0];
+
+  const { rows: responses } = await pool.query(
+    "SELECT * FROM availability WHERE fixture_id = $1 ORDER BY status, email", [event.id]
+  );
+
+  const { layout } = require("./views/dashboard/layout");
+  const groups = { going: [], maybe: [], no: [] };
+  responses.forEach(r => (groups[r.status] || groups.no).push(r));
+
+  const groupHtml = (label, color, list) => `
+    <div class="card">
+      <div class="card-title" style="color:${color}">${label} (${list.length})</div>
+      ${list.length ? `<table><tbody>${list.map(r => `
+        <tr><td>${r.email}</td><td style="color:var(--text-3)">${r.note || ""}</td>
+        <td style="color:var(--text-4);font-size:0.75rem">${new Date(r.updated_at).toLocaleDateString("en-GB")}</td></tr>`).join("")}
+      </tbody></table>` : `<p style="color:var(--text-4);font-size:0.85rem">No responses.</p>`}
+    </div>`;
+
+  const when = new Date(event.start_time).toLocaleDateString("en-GB",
+    { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  const content = `
+    <div class="page-header">
+      <h1>Availability</h1>
+      <p>${event.summary} — ${when}</p>
+    </div>
+    <a href="/dashboard" class="btn btn-secondary btn-sm" style="margin-bottom:16px">← Back to Fixtures</a>
+    ${groupHtml("✓ Going", "#4caf50", groups.going)}
+    ${groupHtml("? Maybe", "#f0b429", groups.maybe)}
+    ${groupHtml("✗ Can't Attend", "#ff6666", groups.no)}
+  `;
+  res.send(layout("Availability", content, req.user));
 });
 
 // Download fixture template
@@ -595,6 +647,51 @@ app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
   );
 
   req.session.flash = { type: "success", msg: `Fixture added: ${summary}` };
+  res.redirect("/dashboard");
+});
+
+// Add a non-fixture event (training, meeting, social, volunteer duty), optionally repeating weekly
+app.post("/dashboard/events/add", requireLogin, async (req, res) => {
+  const { kind, title, date, startTime, endTime, location, description, repeatWeekly, repeatUntil } = req.body;
+  const validKinds = ["training", "meeting", "social", "duty"];
+  const eventKind = validKinds.includes(kind) ? kind : "training";
+
+  if (!title?.trim() || !date || !startTime || !endTime) {
+    req.session.flash = { type: "error", msg: "Title, date and times are required." };
+    return res.redirect("/dashboard");
+  }
+
+  const teamId = req.user.team_id;
+  const team = (await pool.query("SELECT * FROM teams WHERE id = $1", [teamId])).rows[0];
+
+  // Build the list of dates: single, or weekly until repeatUntil (capped at 60 occurrences)
+  const dates = [];
+  let d = new Date(`${date}T00:00:00Z`);
+  if (repeatWeekly === "1" && repeatUntil) {
+    const until = new Date(`${repeatUntil}T23:59:59Z`);
+    while (d <= until && dates.length < 60) {
+      dates.push(d.toISOString().slice(0, 10));
+      d = new Date(d.getTime() + 7 * 86400000);
+    }
+  }
+  if (!dates.length) dates.push(date);
+
+  const recurrenceGroup = dates.length > 1 ? `${team.slug}-rec-${Date.now()}` : null;
+
+  for (let i = 0; i < dates.length; i++) {
+    const uid = `${team.slug}-${Date.now()}-${i}@calendar.fixture-app.com`;
+    await pool.query(
+      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, event_kind, recurrence_group)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [teamId, uid, title.trim(), location || null, description || null,
+       `${dates[i]}T${startTime}:00Z`, `${dates[i]}T${endTime}:00Z`, eventKind, recurrenceGroup]
+    );
+  }
+
+  const msg = dates.length > 1
+    ? `${title.trim()} added — ${dates.length} weekly sessions created.`
+    : `Event added: ${title.trim()}`;
+  req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");
 });
 
@@ -1042,6 +1139,30 @@ app.post("/:slug/subscribe", async (req, res) => {
   res.redirect(`/${slug}`);
 });
 
+// One-tap RSVP from the public team page (logged-in fans)
+app.post("/:slug/rsvp", async (req, res) => {
+  const { slug } = req.params;
+  const { uid, status, note } = req.body;
+
+  if (!req.fanUser) return res.redirect(`/fan/login?returnTo=/${slug}`);
+  if (!["going", "maybe", "no"].includes(status)) return res.redirect(`/${slug}`);
+
+  const { rows } = await pool.query(
+    `SELECT f.id FROM fixtures f JOIN teams t ON t.id = f.team_id
+     WHERE f.uid = $1 AND t.slug = $2`, [uid, slug]
+  );
+  if (rows.length) {
+    await pool.query(
+      `INSERT INTO availability (fixture_id, email, fan_user_id, status, note, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (fixture_id, email)
+       DO UPDATE SET status = $4, note = $5, fan_user_id = $3, updated_at = NOW()`,
+      [rows[0].id, req.fanUser.email, req.fanUser.id, status, note || null]
+    );
+  }
+  res.redirect(`/${slug}`);
+});
+
 // Team public webpage — must be last so it doesn't swallow other routes
 app.get("/:slug", async (req, res) => {
   const { slug } = req.params;
@@ -1060,19 +1181,36 @@ app.get("/:slug", async (req, res) => {
 
   // Check if logged-in fan is already subscribed to this team
   let isSubscribed = false;
+  let rsvpMap = {};
   if (req.fanUser) {
     const { rows: sub } = await pool.query(
       "SELECT id FROM subscribers WHERE team_id = $1 AND fan_user_id = $2",
       [team.id, req.fanUser.id]
     );
     isSubscribed = sub.length > 0;
+
+    // This fan's RSVP per event: { uid: status }
+    const { rows: rsvps } = await pool.query(
+      `SELECT f.uid, a.status FROM availability a JOIN fixtures f ON f.id = a.fixture_id
+       WHERE f.team_id = $1 AND a.email = $2`, [team.id, req.fanUser.email]
+    );
+    rsvps.forEach(r => { rsvpMap[r.uid] = r.status; });
   }
+
+  // Public going-count per event: { uid: n }
+  const { rows: goingRows } = await pool.query(
+    `SELECT f.uid, COUNT(*)::int AS n
+     FROM availability a JOIN fixtures f ON f.id = a.fixture_id
+     WHERE f.team_id = $1 AND a.status = 'going' GROUP BY f.uid`, [team.id]
+  );
+  const goingCounts = {};
+  goingRows.forEach(r => { goingCounts[r.uid] = r.n; });
 
   const flash = req.session.teamFlash;
   delete req.session.teamFlash;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed));
+  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts));
 });
 
 // --- Start ---

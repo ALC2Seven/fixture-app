@@ -7,7 +7,8 @@ function fmtDate(d) {
   });
 }
 
-function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
+function homePage(user, team, fixtures, subscribers, flash, homeVenue, availability) {
+  availability = availability || {};
   const now = new Date();
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
@@ -18,35 +19,60 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
     tournament: '<span class="badge" style="background:#001a2a;color:#29b6f0">Tournament</span>',
     festival:   '<span class="badge" style="background:#0a1a0a;color:#66bb6a">Festival</span>',
   };
+  const KIND_BADGES = {
+    training: '<span class="badge" style="background:#1f1530;color:#b794f6">Training</span>',
+    meeting:  '<span class="badge" style="background:#1a2530;color:#7ab8d9">Meeting</span>',
+    social:   '<span class="badge" style="background:#2a1520;color:#f687b3">Social</span>',
+    duty:     '<span class="badge" style="background:#0a2025;color:#4fd1c5">Duty</span>',
+  };
 
   const fixtureRows = fixtures.map(f => {
     const cancelled = f.status === "cancelled_hidden" || f.status === "cancelled_shown";
+    const isEvent = f.event_kind && f.event_kind !== "fixture";
     const rowStyle = cancelled ? "opacity:0.5" : "";
     const statusBadge = f.status === "cancelled_shown"
       ? '<span class="badge" style="background:#2a1010;color:#ff6666">CANCELLED</span>'
       : f.status === "cancelled_hidden"
       ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
       : "";
-    const typeBadge = TYPE_BADGES[f.fixture_type || "league"] || TYPE_BADGES.league;
+    const typeBadge = isEvent
+      ? (KIND_BADGES[f.event_kind] || KIND_BADGES.training)
+      : (TYPE_BADGES[f.fixture_type || "league"] || TYPE_BADGES.league);
     const isActuallyHome = f.home_team === team.name;
-    const opponentName   = isActuallyHome ? f.away_team : f.home_team;
+    const opponentName   = isActuallyHome ? (f.away_team || "") : (f.home_team || "");
     const fType = f.fixture_type || "league";
+
+    const avail = availability[f.uid];
+    const availCell = avail
+      ? `<a href="/dashboard/availability/${f.uid}" style="text-decoration:none;font-size:0.78rem;white-space:nowrap">
+           <span style="color:#4caf50;font-weight:700">✓${avail.going}</span>
+           <span style="color:#f0b429;font-weight:700;margin-left:4px">?${avail.maybe}</span>
+           <span style="color:#ff6666;font-weight:700;margin-left:4px">✗${avail.no}</span>
+         </a>`
+      : '<span style="color:var(--text-5);font-size:0.75rem">—</span>';
+
     return `
     <tr style="${rowStyle}">
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
+      ${isEvent ? `
+      <td colspan="3"><strong>${f.summary}</strong></td>
+      ` : `
       <td><strong>${f.home_team || f.summary}</strong></td>
       <td style="color:#cc0000;font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
+      `}
       <td style="color:#888">${f.location || "TBC"}</td>
       <td>${typeBadge}</td>
-      <td>${isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>'}</td>
+      <td>${isEvent ? "" : (isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>')}</td>
+      <td>${availCell}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${!cancelled ? `
-          <button onclick="openReschedule('${f.uid}','${f.summary}','${f.start_time}','${f.end_time}')"
+          <button onclick="openReschedule('${f.uid}','${f.summary.replace(/'/g,"\\'")}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
+          ${!isEvent ? `
           <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}','${fType}')"
-            class="btn btn-secondary btn-sm">Edit</button>
-          <button onclick="openCancel('${f.uid}','${f.summary}')"
+            class="btn btn-secondary btn-sm">Edit</button>` : ""}
+          <button onclick="openCancel('${f.uid}','${f.summary.replace(/'/g,"\\'")}')"
             class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>
         ` : `
           <form method="POST" action="/dashboard/fixtures/restore">
@@ -165,9 +191,67 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
       </form>
     </div>
 
+    <!-- Add Training / Event -->
+    <div class="card">
+      <div class="card-title">Add Training / Event</div>
+      <form method="POST" action="/dashboard/events/add">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Event Type</label>
+            <select name="kind">
+              <option value="training">Training</option>
+              <option value="meeting">Meeting</option>
+              <option value="social">Social</option>
+              <option value="duty">Volunteer Duty</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:2">
+            <label>Title</label>
+            <input type="text" name="title" required placeholder="e.g. Tuesday Training">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" name="date" required>
+          </div>
+          <div class="form-group">
+            <label>Start Time (UTC)</label>
+            <input type="time" name="startTime" required>
+          </div>
+          <div class="form-group">
+            <label>End Time (UTC)</label>
+            <input type="time" name="endTime" required>
+          </div>
+          <div class="form-group">
+            <label>Venue</label>
+            <input type="text" name="location" placeholder="e.g. Training Ground">
+          </div>
+        </div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group" style="flex:2">
+            <label>Notes (optional)</label>
+            <input type="text" name="description" placeholder="e.g. Bring boots and a drink">
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;padding:9px 0">
+              <input type="checkbox" name="repeatWeekly" value="1" style="width:auto;accent-color:#cc0000"
+                onchange="document.getElementById('repeat-until-wrap').style.display = this.checked ? 'flex' : 'none'">
+              Repeat weekly
+            </label>
+          </div>
+          <div class="form-group" id="repeat-until-wrap" style="display:none">
+            <label>Repeat Until</label>
+            <input type="date" name="repeatUntil">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Event</button>
+      </form>
+    </div>
+
     <!-- Fixtures Table -->
     <div class="card">
-      <div class="card-title">All Fixtures (${fixtures.length})</div>
+      <div class="card-title">All Fixtures & Events (${fixtures.length})</div>
       ${fixtures.length ? `
       <table>
         <thead>
@@ -179,6 +263,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue) {
             <th>Venue</th>
             <th>Type</th>
             <th>H/A</th>
+            <th>Availability</th>
             <th></th>
           </tr>
         </thead>

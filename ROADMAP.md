@@ -15,14 +15,16 @@ payment-linked workflows, domains, reporting, premium communications.
 
 The weekly loop a volunteer coach touches must be faster than WhatsApp + spreadsheet.
 
-- [ ] **Design refresh** — card-based fixture layout (Super League reference):
+- [x] **Design refresh** — card-based fixture layout (Super League reference):
       date-tab cards, teams either side of a centre time/venue block, filter pills,
-      works in both dark and light themes. Public page first, then dashboard.
-- [ ] **Event model** — generalise Fixture → Event with subtypes:
-      Fixture, Training, Meeting, Social, Volunteer Duty. Recurring events
-      (e.g. training every Tuesday for the season).
-- [ ] **Availability / RSVP** — one-tap Going / Maybe / Can't attend per event,
-      with note. Visible roll-up for the coach. Guardian can respond for a child (Phase 2 dependency).
+      works in both dark and light themes. Public page done; dashboard restyle still open.
+- [x] **Event model** — fixtures table generalised with event_kind
+      (fixture/training/meeting/social/duty) + recurrence_group; Add Event form
+      with weekly repeat (capped at 60); events flow into ICS feed and public page tabs.
+- [x] **Availability / RSVP** — one-tap Going / Maybe / Can't per event for
+      logged-in fans on the public page; coach sees ✓/?/✗ roll-up per event in the
+      dashboard plus a detail page (/dashboard/availability/:uid). Still to come:
+      tokenized one-tap RSVP links in emails (with reminders), notes UI, guardian responses (Phase 2).
 - [ ] **Automatic reminders** — email (later push/WhatsApp) before events and when no response.
 - [ ] **Announcement messaging** — broadcast from club to subscribers/members,
       distinct from future conversational messaging. Message log retained.

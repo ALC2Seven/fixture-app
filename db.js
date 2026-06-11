@@ -94,6 +94,28 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS fan_user_id INTEGER REFERENCES fan_users(id) ON DELETE SET NULL;
   `);
 
+  // Event model: fixtures table holds all event kinds (fixture, training, meeting, social, duty).
+  // recurrence_group ties together a weekly series created in one go.
+  await pool.query(`
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS event_kind VARCHAR(20) DEFAULT 'fixture',
+      ADD COLUMN IF NOT EXISTS recurrence_group VARCHAR(80);
+  `);
+
+  // RSVP / availability responses (one row per person per event)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS availability (
+      id          SERIAL PRIMARY KEY,
+      fixture_id  INTEGER REFERENCES fixtures(id) ON DELETE CASCADE,
+      email       VARCHAR(200) NOT NULL,
+      fan_user_id INTEGER REFERENCES fan_users(id) ON DELETE SET NULL,
+      status      VARCHAR(10) NOT NULL,
+      note        VARCHAR(300),
+      updated_at  TIMESTAMP DEFAULT NOW(),
+      UNIQUE(fixture_id, email)
+    );
+  `);
+
   console.log("Database ready");
 }
 

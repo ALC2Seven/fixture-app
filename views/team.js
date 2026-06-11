@@ -1,18 +1,33 @@
-// Type config: row tints + badge colours per theme
+// Type config: row tints + badge colours per theme.
+// Keys cover both fixture types (league/cup/tournament/festival)
+// and event kinds (training/meeting/social/duty).
 const TYPE_CONFIG = {
   dark: {
     league:     { label: "League",     rowBg: "transparent", badge: null },
     cup:        { label: "Cup",        rowBg: "#2a2410",     badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
     tournament: { label: "Tournament", rowBg: "#18222e",     badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
     festival:   { label: "Festival",   rowBg: "#1a2218",     badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
+    training:   { label: "Training",   rowBg: "#1f1a2e",     badge: { bg: "#1f1530", color: "#b794f6", text: "Training" } },
+    meeting:    { label: "Meetings",   rowBg: "#1a2026",     badge: { bg: "#1a2530", color: "#7ab8d9", text: "Meeting" } },
+    social:     { label: "Social",     rowBg: "#261a20",     badge: { bg: "#2a1520", color: "#f687b3", text: "Social" } },
+    duty:       { label: "Duties",     rowBg: "#102225",     badge: { bg: "#0a2025", color: "#4fd1c5", text: "Duty" } },
   },
   light: {
     league:     { label: "League",     rowBg: "transparent", badge: null },
     cup:        { label: "Cup",        rowBg: "#fffbeb",     badge: { bg: "#92400e", color: "#fef3c7", text: "Cup" } },
     tournament: { label: "Tournament", rowBg: "#eff6ff",     badge: { bg: "#1e40af", color: "#dbeafe", text: "Tournament" } },
     festival:   { label: "Festival",   rowBg: "#f0fdf4",     badge: { bg: "#166534", color: "#dcfce7", text: "Festival" } },
+    training:   { label: "Training",   rowBg: "#faf5ff",     badge: { bg: "#6b21a8", color: "#f3e8ff", text: "Training" } },
+    meeting:    { label: "Meetings",   rowBg: "#f0f7fb",     badge: { bg: "#155e75", color: "#cffafe", text: "Meeting" } },
+    social:     { label: "Social",     rowBg: "#fdf2f8",     badge: { bg: "#9d174d", color: "#fce7f3", text: "Social" } },
+    duty:       { label: "Duties",     rowBg: "#f0fdfa",     badge: { bg: "#115e59", color: "#ccfbf1", text: "Duty" } },
   },
 };
+
+// Filter/tint key for an item: fixtures use fixture_type, events use event_kind
+function typeKey(f) {
+  return (f.event_kind && f.event_kind !== "fixture") ? f.event_kind : (f.fixture_type || "league");
+}
 
 function formatDate(date) {
   const d = new Date(date);
@@ -27,26 +42,68 @@ function formatDate(date) {
   };
 }
 
-// One fixture row inside a date card: home team | centre block | away team
-function fixtureRow(fixture, isNext, theme) {
+// RSVP button strip for an upcoming event (logged-in fans only)
+function rsvpStrip(fixture, ctx) {
+  if (!ctx || !ctx.fanUser) return "";
+  if (fixture.status && fixture.status.startsWith("cancelled")) return "";
+  if (new Date(fixture.start_time) < new Date()) return "";
+
+  const current = ctx.rsvpMap[fixture.uid];
+  const going = ctx.goingCounts[fixture.uid] || 0;
+  const btn = (status, label, cls) => `
+    <form method="POST" action="/${ctx.slug}/rsvp" style="display:inline">
+      <input type="hidden" name="uid" value="${fixture.uid}">
+      <input type="hidden" name="status" value="${status}">
+      <button type="submit" class="rsvp-btn ${cls} ${current === status ? "rsvp-on" : ""}">${label}</button>
+    </form>`;
+
+  return `
+    <div class="fx-rsvp">
+      <span class="rsvp-label">Your availability:</span>
+      ${btn("going", "✓ Going", "rsvp-going")}
+      ${btn("maybe", "? Maybe", "rsvp-maybe")}
+      ${btn("no", "✗ Can't", "rsvp-no")}
+      ${going > 0 ? `<span class="rsvp-count">${going} going</span>` : ""}
+    </div>`;
+}
+
+// One row inside a date card.
+// Fixtures: home team | centre block | away team. Events: single centred block.
+function fixtureRow(fixture, isNext, theme, ctx) {
   const d = formatDate(fixture.start_time);
   const cancelled = fixture.status === "cancelled_shown";
-  const type = fixture.fixture_type || "league";
+  const isEvent = fixture.event_kind && fixture.event_kind !== "fixture";
+  const key = typeKey(fixture);
   const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
-  const cfg = themeConfig[type] || themeConfig.league;
+  const cfg = themeConfig[key] || themeConfig.league;
 
   const badgeHtml = cfg.badge
     ? `<span class="pill" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>`
     : "";
-  const homeAwayPill = fixture.is_home
+  const homeAwayPill = isEvent ? "" : (fixture.is_home
     ? `<span class="pill pill-home">Home</span>`
-    : `<span class="pill pill-away">Away</span>`;
+    : `<span class="pill pill-away">Away</span>`);
   const statusPill = cancelled
     ? `<span class="pill pill-cancelled">Cancelled</span>`
     : isNext ? `<span class="pill pill-next">Next Fixture</span>` : "";
 
+  if (isEvent) {
+    return `
+    <div class="fx fx-event ${cancelled ? "fx-cancelled" : ""}" data-type="${key}"
+         style="background:${cfg.rowBg}">
+      <div class="fx-centre">
+        <div class="fx-pills">${statusPill}${badgeHtml}</div>
+        <div class="fx-event-title">${fixture.summary}</div>
+        <div class="fx-time">${d.time}</div>
+        <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
+        ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
+      </div>
+      ${rsvpStrip(fixture, ctx)}
+    </div>`;
+  }
+
   return `
-    <div class="fx ${isNext ? "fx-next" : ""} ${cancelled ? "fx-cancelled" : ""}" data-type="${type}"
+    <div class="fx ${isNext ? "fx-next" : ""} ${cancelled ? "fx-cancelled" : ""}" data-type="${key}"
          style="background:${cfg.rowBg}">
       <div class="fx-team fx-team-home">${fixture.home_team || fixture.summary}</div>
       <div class="fx-centre">
@@ -56,12 +113,13 @@ function fixtureRow(fixture, isNext, theme) {
         ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
       </div>
       <div class="fx-team fx-team-away">${fixture.away_team || ""}</div>
+      ${rsvpStrip(fixture, ctx)}
     </div>
   `;
 }
 
 // Group fixtures: month header → date cards (tab + card)
-function fixtureCards(fixtures, markNextIndex, theme) {
+function fixtureCards(fixtures, markNextIndex, theme, ctx) {
   if (!fixtures.length) return '<div class="empty">No fixtures scheduled.</div>';
 
   const months = [];
@@ -83,7 +141,7 @@ function fixtureCards(fixtures, markNextIndex, theme) {
   return months.map(month => {
     const cards = month.days.map(day => {
       const rows = day.items
-        .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme))
+        .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme, ctx))
         .join("");
       return `
         <div class="date-group">
@@ -97,16 +155,16 @@ function fixtureCards(fixtures, markNextIndex, theme) {
 
 // Tab bar — only when more than one type present
 function buildTabs(fixtures, theme) {
-  const types = [...new Set(fixtures.map(f => f.fixture_type || "league"))];
+  const types = [...new Set(fixtures.map(typeKey))];
   if (types.length <= 1) return "";
 
   const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
-  const tabOrder = ["league", "cup", "tournament", "festival"];
+  const tabOrder = ["league", "cup", "tournament", "festival", "training", "meeting", "social", "duty"];
   const presentTypes = tabOrder.filter(t => types.includes(t));
 
   const buttons = presentTypes.map(t => {
     const cfg = themeConfig[t] || themeConfig.league;
-    const count = fixtures.filter(f => (f.fixture_type || "league") === t).length;
+    const count = fixtures.filter(f => typeKey(f) === t).length;
     return `<button class="tab-btn" data-tab="${t}" onclick="filterTab('${t}')">${cfg.label} <span class="tab-count">${count}</span></button>`;
   });
 
@@ -118,7 +176,8 @@ function buildTabs(fixtures, theme) {
   `;
 }
 
-function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
+function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts) {
+  const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {} };
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
@@ -284,6 +343,31 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     .fx-venue { font-size: 0.75rem; color: var(--text-3); margin-top: 3px; }
     .fx-comp { font-size: 0.68rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 
+    /* Non-fixture events: single centred block */
+    .fx-event { grid-template-columns: 1fr; }
+    .fx-event-title {
+      font-size: 1rem; font-weight: 900; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 2px;
+    }
+
+    /* RSVP strip */
+    .fx-rsvp {
+      grid-column: 1 / -1; display: flex; gap: 8px; align-items: center;
+      justify-content: center; flex-wrap: wrap;
+      margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+    }
+    .rsvp-label { font-size: 0.66rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; }
+    .rsvp-btn {
+      background: transparent; border: 1px solid var(--border); color: var(--text-3);
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.5px;
+      padding: 5px 12px; border-radius: 14px; cursor: pointer; transition: all 0.15s;
+    }
+    .rsvp-btn:hover { color: var(--text); border-color: var(--text-4); }
+    .rsvp-going.rsvp-on { background: #1a7a2e; border-color: #1a7a2e; color: #fff; }
+    .rsvp-maybe.rsvp-on { background: #b8860b; border-color: #b8860b; color: #fff; }
+    .rsvp-no.rsvp-on    { background: #aa2222; border-color: #aa2222; color: #fff; }
+    .rsvp-count { font-size: 0.68rem; color: var(--text-3); font-weight: 700; margin-left: 4px; }
+
     /* Past toggle */
     .past-toggle {
       background: none; border: none; color: var(--text-4); font-size: 0.78rem;
@@ -431,10 +515,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       <span id="past-arrow">▶</span> Past Fixtures (${past.length})
     </button>
     <div id="past-fixtures">
-      ${fixtureCards(past, -1, theme)}
+      ${fixtureCards(past, -1, theme, ctx)}
     </div>` : ""}
     <div id="upcoming-rows">
-      ${fixtureCards(upcoming, nextIndex, theme)}
+      ${fixtureCards(upcoming, nextIndex, theme, ctx)}
     </div>
   </div>
 

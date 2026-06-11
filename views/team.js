@@ -186,6 +186,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
   const isPaid = team.tier === "standard" || team.tier === "pro";
   const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
+  const googleCalUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
+  const outlookCalUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(calendarUrl)}&name=${encodeURIComponent(team.name + " Fixtures")}`;
   const theme = team.theme === "light" ? "light" : "dark";
 
   const justSubscribed = flash && flash.msg === "subscribed";
@@ -397,6 +399,33 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .modal p { color: var(--text-3); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .modal-actions .btn { flex: 1; justify-content: center; }
+
+    /* Calendar chooser */
+    .cal-option {
+      display: flex; align-items: center; gap: 14px; width: 100%;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 18px; margin-bottom: 10px; text-decoration: none;
+      color: var(--text); transition: border-color 0.15s; cursor: pointer;
+      font-family: inherit; font-size: inherit; text-align: left;
+    }
+    .cal-option:hover { border-color: #cc0000; }
+    .cal-option-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .cal-option-name { font-weight: 700; font-size: 0.9rem; }
+    .cal-option-sub { font-size: 0.74rem; color: var(--text-3); margin-top: 1px; }
+    .cal-copy-row {
+      display: flex; gap: 8px; margin-top: 14px; padding-top: 14px;
+      border-top: 1px dashed var(--border);
+    }
+    .cal-copy-row input {
+      flex: 1; background: var(--bg); border: 1px solid var(--border);
+      color: var(--text-3); font-size: 0.72rem; padding: 9px 12px;
+      border-radius: 8px; outline: none; font-family: inherit;
+    }
+    .cal-copy-btn {
+      background: var(--border); border: none; color: var(--text-2);
+      font-size: 0.72rem; font-weight: 700; padding: 9px 16px;
+      border-radius: 8px; cursor: pointer; font-family: inherit; white-space: nowrap;
+    }
     body.light .modal-overlay .btn-outline { color: var(--text); border-color: var(--text); }
 
     /* Post-signup step */
@@ -463,7 +492,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     <div class="hero-actions">
       ${isPaid ? (() => {
         if (isSubscribed || justSubscribed) {
-          return `<a href="${webcalUrl}" class="btn btn-primary">📅 Add to Calendar</a>
+          return `<button onclick="openCalModal()" class="btn btn-primary">📅 Add to Calendar</button>
                   <a href="/my-teams" class="btn btn-outline">Manage Subscriptions</a>`;
         } else if (fanUser) {
           return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline">
@@ -497,7 +526,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       <div class="tick">✅</div>
       <h3>You're subscribed!</h3>
       <p>You'll be emailed whenever ${team.name} reschedule or cancel a fixture.<br>Now add the live fixture calendar to your phone:</p>
-      <a href="${webcalUrl}" class="btn btn-primary" style="display:inline-flex">📅 Add to Calendar</a>
+      <button onclick="openCalModal()" class="btn btn-primary" style="display:inline-flex">📅 Add to Calendar</button>
     </div>
   </div>` : ""}
 
@@ -546,7 +575,59 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     </div>
   </div>` : ""}
 
+  <!-- Calendar chooser modal -->
+  ${isPaid ? `
+  <div id="cal-modal" class="modal-overlay">
+    <div class="modal">
+      <h2>Add to Your Calendar</h2>
+      <p>Pick your calendar app — fixtures and training stay up to date automatically, including reschedules and cancellations.</p>
+      <a href="${webcalUrl}" class="cal-option">
+        <span class="cal-option-icon">🍎</span>
+        <span>
+          <span class="cal-option-name">Apple Calendar</span>
+          <span class="cal-option-sub" style="display:block">iPhone, iPad & Mac — opens instantly</span>
+        </span>
+      </a>
+      <a href="${googleCalUrl}" target="_blank" rel="noopener" class="cal-option">
+        <span class="cal-option-icon">📆</span>
+        <span>
+          <span class="cal-option-name">Google Calendar</span>
+          <span class="cal-option-sub" style="display:block">Opens Google Calendar to confirm the subscription</span>
+        </span>
+      </a>
+      <a href="${outlookCalUrl}" target="_blank" rel="noopener" class="cal-option">
+        <span class="cal-option-icon">📧</span>
+        <span>
+          <span class="cal-option-name">Outlook</span>
+          <span class="cal-option-sub" style="display:block">Outlook.com & Microsoft 365</span>
+        </span>
+      </a>
+      <div class="cal-copy-row">
+        <input type="text" id="cal-url" value="${calendarUrl}" readonly onclick="this.select()">
+        <button type="button" class="cal-copy-btn" onclick="copyCalUrl(this)">Copy link</button>
+      </div>
+      <button type="button" onclick="document.getElementById('cal-modal').classList.remove('open')"
+        style="background:none;border:none;color:var(--text-4);font-size:0.75rem;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center;font-family:inherit">
+        Close
+      </button>
+    </div>
+  </div>` : ""}
+
   <script>
+    function openCalModal() {
+      document.getElementById('cal-modal').classList.add('open');
+    }
+    function copyCalUrl(btn) {
+      const input = document.getElementById('cal-url');
+      input.select();
+      navigator.clipboard.writeText(input.value).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy link'; }, 2000);
+      });
+    }
+    const calModal = document.getElementById('cal-modal');
+    if (calModal) calModal.addEventListener('click', e => { if (e.target === calModal) calModal.classList.remove('open'); });
+
     function togglePast(btn) {
       const el = document.getElementById('past-fixtures');
       const arrow = document.getElementById('past-arrow');

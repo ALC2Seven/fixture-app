@@ -136,6 +136,34 @@ function layout(title, content, user) {
     .theme-swatch { width: 36px; height: 36px; border: 1px solid var(--border2); border-radius: 8px; flex-shrink: 0; }
     .theme-label { font-size: 0.82rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
     .theme-sub { font-size: 0.7rem; color: var(--text-4); margin-top: 2px; }
+
+    /* Mobile: sidebar becomes a horizontal tab bar, tables scroll inside cards */
+    @media (max-width: 760px) {
+      .topnav { padding: 0 16px; height: 50px; }
+      .topnav-right span { display: none; }
+      .shell { flex-direction: column; }
+      .sidebar {
+        width: 100%; display: flex; align-items: center; overflow-x: auto;
+        padding: 0; border-right: none; border-bottom: 1px solid var(--border);
+        -webkit-overflow-scrolling: touch;
+      }
+      .sidebar-section { display: none; }
+      .sidebar a {
+        border-left: none; border-bottom: 3px solid transparent;
+        white-space: nowrap; padding: 12px 14px; flex-shrink: 0; font-size: 0.8rem;
+      }
+      .sidebar a.active { border-bottom-color: var(--red); background: none; }
+      .main { padding: 16px 14px; }
+      .card { padding: 16px; overflow-x: auto; }
+      table { min-width: 640px; }
+      .stats { gap: 10px; }
+      .stat { min-width: calc(50% - 5px); padding: 12px 14px; }
+      .stat-value { font-size: 1.4rem; }
+      .page-header h1 { font-size: 1.15rem; }
+      .form-row { gap: 10px; }
+      .form-group { min-width: 100%; }
+      td, th { padding: 9px 8px; }
+    }
   </style>
 </head>
 <body${isLight ? ' class="light"' : ''}>

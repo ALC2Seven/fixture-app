@@ -1160,19 +1160,29 @@ app.get("/dashboard/feed", requireLogin, async (req, res) => {
   const team = teams[0];
   const feedUrl = `https://${req.headers.host}/calendar/${team.slug}.ics`;
   const webcalUrl = feedUrl.replace("https://", "webcal://");
+  const googleUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
+  const outlookUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(feedUrl)}&name=${encodeURIComponent(team.name + " Fixtures")}`;
   const { layout } = require("./views/dashboard/layout");
   const content = `
     <div class="page-header"><h1>Calendar Feed</h1><p>Share these links with your fans.</p></div>
     <div class="card">
       <div class="card-title">Your Public Page</div>
-      <p style="color:#aaa;font-size:0.85rem;margin-bottom:10px">Share this link with fans to see your fixtures.</p>
+      <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:10px">Share this link with fans — they can subscribe from there in one tap.</p>
       <a href="/${team.slug}" target="_blank" class="btn btn-secondary">View Page →</a>
     </div>
     <div class="card">
-      <div class="card-title">Calendar Subscription URL</div>
-      <p style="color:#aaa;font-size:0.85rem;margin-bottom:10px">Fans paste this into Google Calendar, Outlook etc.</p>
-      <code style="background:#111;padding:10px 14px;display:block;color:#cc0000;font-size:0.85rem;word-break:break-all;margin-bottom:10px">${feedUrl}</code>
-      <a href="${webcalUrl}" class="btn btn-primary">📅 Subscribe (Apple/Outlook)</a>
+      <div class="card-title">One-Tap Subscribe Links</div>
+      <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:14px">Test the calendar subscription yourself, or share a direct link for a specific app.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="${webcalUrl}" class="btn btn-secondary">🍎 Apple Calendar</a>
+        <a href="${googleUrl}" target="_blank" class="btn btn-secondary">📆 Google Calendar</a>
+        <a href="${outlookUrl}" target="_blank" class="btn btn-secondary">📧 Outlook</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Raw Subscription URL</div>
+      <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:10px">For any other calendar app that accepts an ICS URL.</p>
+      <code style="background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;display:block;color:var(--red);font-size:0.85rem;word-break:break-all">${feedUrl}</code>
     </div>
   `;
   res.send(layout("Calendar Feed", content, req.user));

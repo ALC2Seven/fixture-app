@@ -33,13 +33,18 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
       subscribers (Standard/Pro), confirmation prompt, HTML-escaped body with line
       breaks, full send history retained in announcements table. Free tier sees upsell.
       Later: role-based recipient filters, reply threads (Phase 2).
-- [ ] **Add-to-calendar UX** — one-tap Google / Apple / Outlook flows,
-      per-fixture-type subscriptions, cleaner manage-subscription controls. (ECAL is the benchmark.)
+- [x] **Add-to-calendar UX** — calendar chooser modal on the team page
+      (Apple webcal / Google / Outlook one-tap links + copy URL), same three
+      buttons per team on My Teams, and on the dashboard feed page.
+      Later: per-fixture-type subscriptions.
 - [x] **Homepage redesign** — new concept flow (publish → share one link → stays in
       sync), modern slick styling (Inter, deep navy, rounded cards, product mockup
       with RSVP in hero, clubs-vs-supporters split section). Pricing/signup/dashboard
       restyle to the same language still open.
-- [ ] **Mobile dashboard polish** — fixture add/edit/cancel and availability checks must be excellent on a phone.
+- [x] **Mobile dashboard polish** — sidebar becomes a horizontal tab bar under 760px,
+      tables scroll horizontally inside cards, stats go two-up, forms stack full-width.
+
+**Phase 1 complete (June 2026).**
 
 ## Phase 2 — Structure and trust
 

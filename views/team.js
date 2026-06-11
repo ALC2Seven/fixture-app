@@ -1,16 +1,16 @@
-// Type config: row colours per theme
+// Type config: row tints + badge colours per theme
 const TYPE_CONFIG = {
   dark: {
-    league:     { label: "League",     evenBg: "#222630", oddBg: "#282c38", badge: null },
-    cup:        { label: "Cup",        evenBg: "#2a2410", oddBg: "#312b14", badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
-    tournament: { label: "Tournament", evenBg: "#18222e", oddBg: "#1e2a38", badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
-    festival:   { label: "Festival",   evenBg: "#1a2218", oddBg: "#202a1e", badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
+    league:     { label: "League",     rowBg: "transparent", badge: null },
+    cup:        { label: "Cup",        rowBg: "#2a2410",     badge: { bg: "#2a2000", color: "#f0b429", text: "Cup" } },
+    tournament: { label: "Tournament", rowBg: "#18222e",     badge: { bg: "#001a2a", color: "#29b6f0", text: "Tournament" } },
+    festival:   { label: "Festival",   rowBg: "#1a2218",     badge: { bg: "#0a1a0a", color: "#66bb6a", text: "Festival" } },
   },
   light: {
-    league:     { label: "League",     evenBg: "#ffffff", oddBg: "#f5f6f8", badge: null },
-    cup:        { label: "Cup",        evenBg: "#fffbeb", oddBg: "#fef3c7", badge: { bg: "#92400e", color: "#fef3c7", text: "Cup" } },
-    tournament: { label: "Tournament", evenBg: "#eff6ff", oddBg: "#dbeafe", badge: { bg: "#1e40af", color: "#dbeafe", text: "Tournament" } },
-    festival:   { label: "Festival",   evenBg: "#f0fdf4", oddBg: "#dcfce7", badge: { bg: "#166534", color: "#dcfce7", text: "Festival" } },
+    league:     { label: "League",     rowBg: "transparent", badge: null },
+    cup:        { label: "Cup",        rowBg: "#fffbeb",     badge: { bg: "#92400e", color: "#fef3c7", text: "Cup" } },
+    tournament: { label: "Tournament", rowBg: "#eff6ff",     badge: { bg: "#1e40af", color: "#dbeafe", text: "Tournament" } },
+    festival:   { label: "Festival",   rowBg: "#f0fdf4",     badge: { bg: "#166534", color: "#dcfce7", text: "Festival" } },
   },
 };
 
@@ -18,100 +18,87 @@ function formatDate(date) {
   const d = new Date(date);
   return {
     day:       d.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }).toUpperCase(),
-    date:      d.toLocaleDateString("en-GB", { day: "numeric", timeZone: "UTC" }),
+    date:      d.toLocaleDateString("en-GB", { day: "2-digit", timeZone: "UTC" }),
     month:     d.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }).toUpperCase(),
     year:      d.toLocaleDateString("en-GB", { year: "numeric", timeZone: "UTC" }),
     time:      d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" }),
     monthYear: d.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }),
+    dayKey:    d.toISOString().slice(0, 10),
   };
 }
 
-function fixtureRow(fixture, isNext, isEven, theme) {
+// One fixture row inside a date card: home team | centre block | away team
+function fixtureRow(fixture, isNext, theme) {
   const d = formatDate(fixture.start_time);
-  const homeAway = fixture.is_home ? "HOME" : "AWAY";
-  const homeAwayColor = fixture.is_home ? "#cc0000" : (theme === "light" ? "#666" : "#888");
   const cancelled = fixture.status === "cancelled_shown";
   const type = fixture.fixture_type || "league";
   const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
   const cfg = themeConfig[type] || themeConfig.league;
 
-  let rowBg;
-  if (cancelled) {
-    rowBg = theme === "light" ? "#f5f5f5" : "#1e2025";
-  } else if (isNext) {
-    rowBg = theme === "light" ? "#fff0f0" : "#2e2535";
-  } else {
-    rowBg = isEven ? cfg.evenBg : cfg.oddBg;
-  }
-
   const badgeHtml = cfg.badge
-    ? `<span class="type-badge" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>`
+    ? `<span class="pill" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>`
     : "";
+  const homeAwayPill = fixture.is_home
+    ? `<span class="pill pill-home">Home</span>`
+    : `<span class="pill pill-away">Away</span>`;
+  const statusPill = cancelled
+    ? `<span class="pill pill-cancelled">Cancelled</span>`
+    : isNext ? `<span class="pill pill-next">Next Fixture</span>` : "";
 
   return `
-    <div class="fixture-row ${isNext ? "next-fixture" : ""}" data-type="${type}"
-         style="background:${rowBg};${cancelled ? "opacity:0.55;border-left-color:#444" : ""}">
-      <div class="fixture-date">
-        ${cancelled ? '<div class="next-label" style="background:#444;font-size:0.55rem">CANCELLED</div>' : isNext ? '<div class="next-label">NEXT<br>FIXTURE</div>' : ""}
-        <div class="date-block">
-          <span class="day">${d.day}</span>
-          <span class="date-num">${d.date}</span>
-          <span class="month">${d.month} ${d.year}</span>
-        </div>
+    <div class="fx ${isNext ? "fx-next" : ""} ${cancelled ? "fx-cancelled" : ""}" data-type="${type}"
+         style="background:${cfg.rowBg}">
+      <div class="fx-team fx-team-home">${fixture.home_team || fixture.summary}</div>
+      <div class="fx-centre">
+        <div class="fx-pills">${statusPill}${homeAwayPill}${badgeHtml}</div>
+        <div class="fx-time">${d.time}</div>
+        <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
+        ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
       </div>
-      <div class="fixture-details">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span class="home-away" style="color:${homeAwayColor}">${homeAway}</span>
-          ${badgeHtml}
-        </div>
-        <div class="match-info">
-          <span class="clock">🕐 ${d.time}</span>
-          <span class="venue">📍 ${fixture.location || "TBC"}</span>
-        </div>
-        ${fixture.description ? `<span class="competition">${fixture.description}</span>` : ""}
-      </div>
-      <div class="fixture-teams">
-        <span class="team-name">${fixture.home_team || fixture.summary}</span>
-        <span class="vs">VS</span>
-        <span class="team-name">${fixture.away_team || ""}</span>
-      </div>
+      <div class="fx-team fx-team-away">${fixture.away_team || ""}</div>
     </div>
   `;
 }
 
-function fixturesByMonth(fixtures, markNextIndex, theme) {
+// Group fixtures: month header → date cards (tab + card)
+function fixtureCards(fixtures, markNextIndex, theme) {
   if (!fixtures.length) return '<div class="empty">No fixtures scheduled.</div>';
 
-  const groups = [];
-  let currentMonth = null;
-  let currentGroup = [];
-
+  const months = [];
   fixtures.forEach((f, i) => {
     const d = formatDate(f.start_time);
-    if (d.monthYear !== currentMonth) {
-      if (currentGroup.length) groups.push({ month: currentMonth, fixtures: currentGroup });
-      currentMonth = d.monthYear;
-      currentGroup = [];
+    let month = months[months.length - 1];
+    if (!month || month.label !== d.monthYear) {
+      month = { label: d.monthYear, days: [] };
+      months.push(month);
     }
-    currentGroup.push({ fixture: f, index: i });
+    let day = month.days[month.days.length - 1];
+    if (!day || day.key !== d.dayKey) {
+      day = { key: d.dayKey, tab: `${d.day} ${d.date} ${d.month}`, items: [] };
+      month.days.push(day);
+    }
+    day.items.push({ fixture: f, index: i });
   });
-  if (currentGroup.length) groups.push({ month: currentMonth, fixtures: currentGroup });
 
-  let evenCounter = 0;
-  return groups.map(group => {
-    const rows = group.fixtures.map(({ fixture, index }) => {
-      const isNext = index === markNextIndex;
-      const isEven = evenCounter++ % 2 === 0;
-      return fixtureRow(fixture, isNext, isEven, theme);
+  return months.map(month => {
+    const cards = month.days.map(day => {
+      const rows = day.items
+        .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme))
+        .join("");
+      return `
+        <div class="date-group">
+          <div class="date-tab">${day.tab}</div>
+          <div class="date-card">${rows}</div>
+        </div>`;
     }).join("");
-    return `<div class="month-group"><div class="month-header">${group.month}</div>${rows}</div>`;
+    return `<div class="month-block"><div class="month-header">${month.label}</div>${cards}</div>`;
   }).join("");
 }
 
-// Build tab bar — only include tabs for types that exist in the fixture list
+// Tab bar — only when more than one type present
 function buildTabs(fixtures, theme) {
   const types = [...new Set(fixtures.map(f => f.fixture_type || "league"))];
-  if (types.length <= 1) return ""; // no tabs if only one type
+  if (types.length <= 1) return "";
 
   const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
   const tabOrder = ["league", "cup", "tournament", "festival"];
@@ -142,7 +129,6 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
   const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
   const theme = team.theme === "light" ? "light" : "dark";
 
-  // Flash states: "subscribed" = just subscribed, "already" = duplicate
   const justSubscribed = flash && flash.msg === "subscribed";
   const alreadySubscribed = flash && flash.msg === "already";
 
@@ -155,7 +141,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
   <style>
     :root {
       --bg:        #1e2025;
-      --surface:   #222630;
+      --surface:   #262a33;
       --border:    #2e3240;
       --text:      #ffffff;
       --text-2:    #cccccc;
@@ -163,9 +149,11 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       --text-4:    #666666;
       --month-hdr: #888888;
       --empty:     #555555;
+      --shadow:    0 2px 10px rgba(0,0,0,0.35);
+      --tab-bg:    #2e3240;
     }
     body.light {
-      --bg:        #f5f6f8;
+      --bg:        #eef0f4;
       --surface:   #ffffff;
       --border:    #e5e7eb;
       --text:      #111827;
@@ -174,6 +162,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       --text-4:    #9ca3af;
       --month-hdr: #6b7280;
       --empty:     #9ca3af;
+      --shadow:    0 2px 8px rgba(16,24,40,0.08);
+      --tab-bg:    #1b2240;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -181,34 +171,25 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 
     /* Hero */
     .hero {
-      background: linear-gradient(to bottom, rgba(0,0,0,0.75), rgba(0,0,0,0.6)),
+      background: linear-gradient(to bottom, rgba(10,14,30,0.85), rgba(10,14,30,0.72)),
                   url('https://images.unsplash.com/photo-1552667466-07770ae110d0?w=1200&q=80') center/cover no-repeat;
       padding: 28px 20px 24px; border-bottom: 3px solid #cc0000; text-align: center;
     }
-    .hero h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; }
+    .hero h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; font-style: italic; color: #fff; }
     .hero h1 span { color: #cc0000; }
-    .hero p { margin: 6px auto 0; color: #aaa; font-size: 0.8rem; max-width: 400px; }
+    .hero p { margin: 6px auto 0; color: #aab; font-size: 0.8rem; max-width: 400px; }
     .hero-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
     .btn {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 8px 18px; font-size: 0.78rem; font-weight: 700;
       letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
-      border: none; cursor: pointer;
+      border: none; cursor: pointer; border-radius: 4px;
     }
     .btn-primary { background: #cc0000; color: #fff; }
     .btn-primary:hover { background: #aa0000; }
     .btn-outline { background: transparent; color: #fff; border: 2px solid #fff; }
     .btn-outline:hover { background: rgba(255,255,255,0.1); }
-
-    /* Section */
-    .section { max-width: 860px; margin: 40px auto; padding: 0 20px; }
-    .section-title {
-      font-size: 0.8rem; font-weight: 700; letter-spacing: 3px;
-      text-transform: uppercase; color: #cc0000;
-      border-bottom: 1px solid var(--border); padding-bottom: 10px;
-      margin-bottom: 0; text-align: center;
-    }
 
     /* Social links */
     .social-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
@@ -216,75 +197,92 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 14px; font-size: 0.72rem; font-weight: 700;
       letter-spacing: 1px; text-transform: uppercase; text-decoration: none;
-      border: 1px solid; transition: opacity 0.15s;
+      border: 1px solid; border-radius: 4px; transition: opacity 0.15s;
     }
     .social-btn:hover { opacity: 0.8; }
-    .social-facebook { color: #1877f2; border-color: #1877f2; }
+    .social-facebook { color: #4d9aff; border-color: #4d9aff; }
     .social-instagram { color: #e1306c; border-color: #e1306c; }
     .social-tiktok { color: #69c9d0; border-color: #69c9d0; }
 
+    /* Section */
+    .section { max-width: 920px; margin: 32px auto; padding: 0 20px; }
+    .section-title {
+      font-size: 0.8rem; font-weight: 900; letter-spacing: 3px;
+      text-transform: uppercase; color: #cc0000; font-style: italic;
+      padding-bottom: 10px; margin-bottom: 0; text-align: center;
+    }
+
     /* Tab bar */
     .tab-bar {
-      display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;
-      margin-top: 16px; margin-bottom: 4px;
-      border-bottom: 1px solid var(--border); padding-bottom: 0;
+      display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+      margin: 14px 0 4px;
     }
     .tab-btn {
-      background: none; border: none; color: var(--text-3);
-      font-size: 0.72rem; font-weight: 700; letter-spacing: 1px;
-      text-transform: uppercase; cursor: pointer;
-      padding: 8px 14px; border-bottom: 2px solid transparent;
-      margin-bottom: -1px; transition: color 0.15s;
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-3);
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
+      text-transform: uppercase; cursor: pointer; border-radius: 20px;
+      padding: 7px 16px; transition: all 0.15s;
     }
-    .tab-btn:hover { color: var(--text-2); }
-    .tab-btn.active { color: var(--text); border-bottom-color: #cc0000; }
+    .tab-btn:hover { color: var(--text); border-color: var(--text-4); }
+    .tab-btn.active { color: #fff; background: #cc0000; border-color: #cc0000; }
     .tab-count {
-      background: var(--border); color: var(--text-3); font-size: 0.6rem;
-      padding: 1px 5px; border-radius: 8px; font-weight: 700;
+      background: rgba(0,0,0,0.25); color: inherit; font-size: 0.62rem;
+      padding: 1px 6px; border-radius: 8px; font-weight: 700; margin-left: 2px;
     }
-    .tab-btn.active .tab-count { background: #cc0000; color: #fff; }
 
-    /* Month headers */
-    .month-group { margin-bottom: 6px; }
+    /* Month header */
     .month-header {
-      font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;
-      text-transform: uppercase; color: var(--month-hdr); background: var(--bg);
-      padding: 12px 20px 8px; border-bottom: 1px solid var(--border);
-      margin-top: 10px; text-align: center;
+      font-size: 0.78rem; font-weight: 900; letter-spacing: 3px;
+      text-transform: uppercase; color: var(--month-hdr); font-style: italic;
+      padding: 22px 0 4px; text-align: center;
     }
 
-    /* Fixture rows */
-    .fixture-row {
-      display: flex; align-items: center; gap: 20px;
-      border-left: 3px solid transparent; padding: 14px 20px;
-      transition: border-color 0.15s;
+    /* Date card with attached tab */
+    .date-group { margin: 16px 0; }
+    .date-tab {
+      display: inline-block; background: var(--tab-bg); color: #fff;
+      font-size: 0.68rem; font-weight: 900; letter-spacing: 1.5px;
+      text-transform: uppercase; padding: 8px 18px;
+      border-radius: 8px 8px 0 0;
     }
-    .fixture-row:hover { border-left-color: #cc0000; }
-    .fixture-row.next-fixture { border-left-color: #cc0000; }
-    .fixture-date { display: flex; align-items: center; gap: 12px; min-width: 130px; }
-    .next-label {
-      background: #cc0000; color: #fff; font-size: 0.6rem; font-weight: 900;
-      letter-spacing: 1px; text-align: center; padding: 6px 8px; line-height: 1.3;
+    body.light .date-tab { color: #fff; }
+    .date-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 0 10px 10px 10px; box-shadow: var(--shadow);
+      overflow: hidden;
     }
-    .date-block { display: flex; flex-direction: column; }
-    .date-block .day   { font-size: 0.7rem; color: #aaa; letter-spacing: 1px; }
-    .date-block .date-num { font-size: 1.8rem; font-weight: 900; line-height: 1; }
-    .date-block .month { font-size: 0.7rem; color: #cc0000; font-weight: 700; }
-    .fixture-details { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
-    .home-away { font-size: 0.7rem; font-weight: 900; letter-spacing: 2px; }
-    .match-info { display: flex; flex-direction: column; gap: 2px; }
-    .clock, .venue { font-size: 0.78rem; color: var(--text-2); }
-    .competition { font-size: 0.7rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
-    .fixture-teams { display: flex; align-items: center; gap: 16px; flex: 1; }
-    .team-name { font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .vs { color: #cc0000; font-size: 1.1rem; font-weight: 900; }
-    .fixture-row { border-bottom: 1px solid var(--border); }
 
-    /* Type badge */
-    .type-badge {
-      display: inline-block; padding: 2px 7px; font-size: 0.6rem;
+    /* Fixture row: home | centre | away */
+    .fx {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: center; gap: 16px;
+      padding: 18px 24px; border-bottom: 1px solid var(--border);
+    }
+    .fx:last-child { border-bottom: none; }
+    .fx-next { box-shadow: inset 4px 0 0 #cc0000; }
+    .fx-cancelled { opacity: 0.55; }
+
+    .fx-team {
+      font-size: 1rem; font-weight: 900; text-transform: uppercase;
+      letter-spacing: 1px; line-height: 1.25;
+    }
+    .fx-team-home { text-align: right; }
+    .fx-team-away { text-align: left; }
+
+    .fx-centre { text-align: center; min-width: 190px; }
+    .fx-pills { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .pill {
+      display: inline-block; padding: 2px 9px; font-size: 0.58rem;
       font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
+      border-radius: 10px;
     }
+    .pill-home { background: #cc0000; color: #fff; }
+    .pill-away { background: var(--border); color: var(--text-3); }
+    .pill-next { background: #cc0000; color: #fff; }
+    .pill-cancelled { background: var(--text-4); color: var(--surface); }
+    .fx-time { font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; }
+    .fx-venue { font-size: 0.75rem; color: var(--text-3); margin-top: 3px; }
+    .fx-comp { font-size: 0.68rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
 
     /* Past toggle */
     .past-toggle {
@@ -304,25 +302,26 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     }
     .modal-overlay.open { display: flex; }
     .modal {
-      background: var(--surface); border-top: 3px solid #cc0000;
+      background: var(--surface); border-top: 3px solid #cc0000; border-radius: 0 0 10px 10px;
       padding: 32px 28px; width: 100%; max-width: 440px;
     }
     .modal h2 { font-size: 1rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
     .modal p { color: var(--text-3); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .modal-actions .btn { flex: 1; justify-content: center; }
+    body.light .modal-overlay .btn-outline { color: var(--text); border-color: var(--text); }
 
     /* Post-signup step */
-    .subscribe-success {
-      max-width: 860px; margin: 24px auto 0; padding: 0 20px;
-    }
+    .subscribe-success { max-width: 920px; margin: 24px auto 0; padding: 0 20px; }
     .subscribe-success-inner {
       background: #1e2a1e; border: 1px solid #2a4a2a; border-left: 3px solid #4a4;
-      padding: 24px 28px; text-align: center;
+      border-radius: 8px; padding: 24px 28px; text-align: center;
     }
+    body.light .subscribe-success-inner { background: #f0fdf4; border-color: #bbf7d0; border-left-color: #22c55e; }
     .subscribe-success-inner .tick { font-size: 1.8rem; margin-bottom: 10px; }
     .subscribe-success-inner h3 { font-size: 0.9rem; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; color: #8d8; margin-bottom: 6px; }
-    .subscribe-success-inner p { color: #888; font-size: 0.85rem; margin-bottom: 20px; }
+    body.light .subscribe-success-inner h3 { color: #166534; }
+    .subscribe-success-inner p { color: var(--text-3); font-size: 0.85rem; margin-bottom: 20px; }
 
     /* Empty state */
     .empty { color: var(--empty); font-size: 0.9rem; padding: 30px 20px; text-align: center; }
@@ -331,29 +330,31 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     footer { text-align: center; padding: 40px 20px; color: var(--text-4); font-size: 0.75rem; letter-spacing: 1px; }
 
     /* Flash (non-success) */
-    .team-flash { max-width: 860px; margin: 16px auto 0; padding: 0 20px; }
-    .team-flash-inner { padding: 12px 18px; font-size: 0.85rem; font-weight: 700; border-left: 3px solid; }
+    .team-flash { max-width: 920px; margin: 16px auto 0; padding: 0 20px; }
+    .team-flash-inner { padding: 12px 18px; font-size: 0.85rem; font-weight: 700; border-left: 3px solid; border-radius: 6px; }
     .team-flash-inner.info  { background: #1a1f2a; border-color: #448; color: #88d; }
     .team-flash-inner.error { background: #2a1a1a; border-color: #a44; color: #d88; }
     body.light .team-flash-inner.info  { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
     body.light .team-flash-inner.error { background: #fff0f0; border-color: #cc0000; color: #aa0000; }
 
-    @media (max-width: 600px) {
+    @media (max-width: 640px) {
       .hero h1 { font-size: 1.6rem; letter-spacing: 2px; }
       .hero p { font-size: 0.75rem; }
-      .fixture-row { flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
-      .fixture-date { min-width: 100px; }
-      .date-block .date-num { font-size: 1.5rem; }
-      .fixture-details { min-width: 130px; flex: 1; }
-      .fixture-teams { flex: 0 0 100%; border-top: 1px solid #333; padding-top: 8px; gap: 8px; justify-content: center; }
-      .team-name { font-size: 0.78rem; letter-spacing: 0.5px; }
-      .vs { font-size: 0.9rem; }
-      .section { padding: 0 12px; }
-      .month-header { padding: 10px 14px 6px; }
+      .section { padding: 0 12px; margin: 24px auto; }
+      .fx {
+        grid-template-columns: 1fr; gap: 8px;
+        padding: 16px 16px; text-align: center;
+      }
+      .fx-team-home, .fx-team-away { text-align: center; }
+      .fx-team { font-size: 0.85rem; }
+      .fx-team-home::after { content: "vs"; display: block; color: #cc0000; font-size: 0.7rem; font-weight: 900; margin-top: 6px; }
+      .fx-centre { order: 3; min-width: 0; }
+      .fx-team-home { order: 1; }
+      .fx-team-away { order: 2; }
+      .fx-time { font-size: 1.2rem; }
       .modal { padding: 24px 20px; }
       .subscribe-success { padding: 0 12px; }
-      .tab-bar { gap: 2px; }
-      .tab-btn { padding: 7px 10px; font-size: 0.65rem; }
+      .tab-btn { padding: 6px 12px; font-size: 0.64rem; }
     }
   </style>
 </head>
@@ -361,10 +362,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 
   ${fanUser ? `
   <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.75rem;color:var(--text-3)">
-    <span>Signed in as <strong style="color:#888">${fanUser.email}</strong></span>
+    <span>Signed in as <strong style="color:var(--text-2)">${fanUser.email}</strong></span>
     <div style="display:flex;gap:16px">
-      <a href="/my-teams" style="color:#aaa;text-decoration:none">My Teams</a>
-      <a href="/fan/logout" style="color:#666;text-decoration:none">Log out</a>
+      <a href="/my-teams" style="color:var(--text-2);text-decoration:none">My Teams</a>
+      <a href="/fan/logout" style="color:var(--text-3);text-decoration:none">Log out</a>
     </div>
   </div>` : ""}
 
@@ -374,16 +375,13 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     <div class="hero-actions">
       ${isPaid ? (() => {
         if (isSubscribed || justSubscribed) {
-          // State 3: already subscribed — show calendar button + manage link
           return `<a href="${webcalUrl}" class="btn btn-primary">📅 Add to Calendar</a>
                   <a href="/my-teams" class="btn btn-outline">Manage Subscriptions</a>`;
         } else if (fanUser) {
-          // State 2: logged in but not subscribed — one-click subscribe
           return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline">
                     <button type="submit" class="btn btn-primary">📅 Subscribe for Updates</button>
                   </form>`;
         } else {
-          // State 1: not logged in — prompt
           return `<button onclick="document.getElementById('subscribe-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>`;
         }
       })() : ""}
@@ -417,7 +415,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
 
   ${alreadySubscribed ? `
   <div class="team-flash">
-    <div class="team-flash-inner info">You're already subscribed to ${team.name}. <a href="/my-teams" style="color:#aad">Manage your subscriptions →</a></div>
+    <div class="team-flash-inner info">You're already subscribed to ${team.name}. <a href="/my-teams" style="color:inherit">Manage your subscriptions →</a></div>
   </div>` : ""}
 
   ${flash && flash.type === "error" ? `
@@ -433,10 +431,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       <span id="past-arrow">▶</span> Past Fixtures (${past.length})
     </button>
     <div id="past-fixtures">
-      ${fixturesByMonth(past, -1, theme)}
+      ${fixtureCards(past, -1, theme)}
     </div>` : ""}
     <div id="upcoming-rows">
-      ${fixturesByMonth(upcoming, nextIndex, theme)}
+      ${fixtureCards(upcoming, nextIndex, theme)}
     </div>
   </div>
 
@@ -448,13 +446,13 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
     <div class="modal">
       <h2>Subscribe for Updates</h2>
       <p>Get email alerts when ${team.name} reschedule or cancel a fixture, and add their live calendar to your phone — all in one place.</p>
-      <p style="color:#666;font-size:0.8rem;margin-top:-10px;margin-bottom:20px">Free account required — takes 30 seconds.</p>
+      <p style="color:var(--text-4);font-size:0.8rem;margin-top:-10px;margin-bottom:20px">Free account required — takes 30 seconds.</p>
       <div class="modal-actions">
         <a href="/fan/signup?returnTo=/${team.slug}" class="btn btn-primary">Create Free Account</a>
         <a href="/fan/login?returnTo=/${team.slug}" class="btn btn-outline">Log In</a>
       </div>
       <button type="button" onclick="document.getElementById('subscribe-modal').classList.remove('open')"
-        style="background:none;border:none;color:#555;font-size:0.75rem;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center">
+        style="background:none;border:none;color:var(--text-4);font-size:0.75rem;cursor:pointer;margin-top:16px;display:block;width:100%;text-align:center">
         Cancel
       </button>
     </div>
@@ -469,24 +467,23 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed) {
       arrow.textContent = open ? '▶' : '▼';
     }
 
-    // Tab filtering — show/hide fixture rows and month-groups by type
+    // Tab filtering — hide fixture rows, then collapse empty date cards and month blocks
     function filterTab(type) {
-      // Update active tab button
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === type);
       });
 
-      const rows = document.querySelectorAll('#upcoming-rows .fixture-row');
-      const monthGroups = document.querySelectorAll('#upcoming-rows .month-group');
-
-      rows.forEach(row => {
+      const scope = document.getElementById('upcoming-rows');
+      scope.querySelectorAll('.fx').forEach(row => {
         row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
       });
-
-      // Hide month-group headers when all their rows are hidden
-      monthGroups.forEach(group => {
-        const visible = [...group.querySelectorAll('.fixture-row')].some(r => r.style.display !== 'none');
+      scope.querySelectorAll('.date-group').forEach(group => {
+        const visible = [...group.querySelectorAll('.fx')].some(r => r.style.display !== 'none');
         group.style.display = visible ? '' : 'none';
+      });
+      scope.querySelectorAll('.month-block').forEach(block => {
+        const visible = [...block.querySelectorAll('.date-group')].some(g => g.style.display !== 'none');
+        block.style.display = visible ? '' : 'none';
       });
     }
 

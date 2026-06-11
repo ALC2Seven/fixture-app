@@ -151,6 +151,11 @@ function fixtureRow(fixture, isNext, theme, ctx) {
         <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
         ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
         ${resultExtras}
+        ${(ctx && ctx.lineupMap && ctx.lineupMap[fixture.uid]) ? `
+        <details class="fx-report">
+          <summary>Line-up (${ctx.lineupMap[fixture.uid].length})</summary>
+          <p>${ctx.lineupMap[fixture.uid].join(" · ")}</p>
+        </details>` : ""}
       </div>
       <div class="fx-team fx-team-away">${fixture.away_team || ""}</div>
       ${rsvpStrip(fixture, ctx)}
@@ -270,9 +275,9 @@ function buildSeasonRecord(fixtures) {
     </div>`;
 }
 
-function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads) {
+function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads, lineupMap) {
   squads = squads || [];
-  const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {}, familyMembers: familyMembers || [] };
+  const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {}, familyMembers: familyMembers || [], lineupMap: lineupMap || {} };
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);

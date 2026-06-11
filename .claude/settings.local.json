@@ -21,7 +21,10 @@
       "Bash(node --check db.js)",
       "Bash(node --check views/dashboard/home.js)",
       "Bash(node --check views/marketing/home.js)",
-      "Bash(node --check utils/fixtureImport.js)"
+      "Bash(node --check utils/fixtureImport.js)",
+      "Bash(node scripts/patch-phase2.js)",
+      "Bash(rm scripts/patch-phase2.js)",
+      "Bash(rmdir scripts *)"
     ]
   }
 }

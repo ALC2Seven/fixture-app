@@ -196,6 +196,50 @@ async function initDb() {
       ON availability (fixture_id, email, COALESCE(family_member_id, 0));
   `);
 
+  // Player roster + match line-ups
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS players (
+      id         SERIAL PRIMARY KEY,
+      team_id    INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      squad_id   INTEGER REFERENCES squads(id) ON DELETE SET NULL,
+      name       VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS lineups (
+      id         SERIAL PRIMARY KEY,
+      fixture_id INTEGER REFERENCES fixtures(id) ON DELETE CASCADE,
+      player_id  INTEGER REFERENCES players(id) ON DELETE CASCADE,
+      UNIQUE(fixture_id, player_id)
+    );
+  `);
+
+  // Per-squad coach delegation: a coach with rows here can only manage those squads.
+  // A coach with no rows manages everything (back-compat).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_squads (
+      user_id  INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      squad_id INTEGER REFERENCES squads(id) ON DELETE CASCADE,
+      PRIMARY KEY(user_id, squad_id)
+    );
+  `);
+
+  // Safeguarding/audit trail of club actions
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id         SERIAL PRIMARY KEY,
+      team_id    INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      user_email VARCHAR(200),
+      action     VARCHAR(60) NOT NULL,
+      detail     TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  // Line-ups stay private to the dashboard unless the club opts in
+  await pool.query(`
+    ALTER TABLE teams ADD COLUMN IF NOT EXISTS show_lineups BOOLEAN DEFAULT false;
+  `);
+
   console.log("Database ready");
 }
 

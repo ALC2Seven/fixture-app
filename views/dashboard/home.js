@@ -7,9 +7,11 @@ function fmtDate(d) {
   });
 }
 
-function homePage(user, team, fixtures, subscribers, flash, homeVenue, availability, squads) {
+function homePage(user, team, fixtures, subscribers, flash, homeVenue, availability, squads, manageableSquadIds) {
   availability = availability || {};
   squads = squads || [];
+  // null = unrestricted; an array = coach limited to those squad ids
+  const canAct = f => !manageableSquadIds || (f.squad_id != null && manageableSquadIds.includes(f.squad_id));
   const hasSquads = squads.length > 0;
   const squadOptions = (selectedId) => `
     <option value="">Club-wide</option>
@@ -86,7 +88,9 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       <td>${isEvent ? "" : (isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>')}</td>
       <td>${availCell}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
-        ${!cancelled ? `
+        ${!canAct(f) ? '<span style="color:var(--text-5);font-size:0.75rem">View only</span>' : !cancelled ? `
+          ${!isEvent ? `
+          <a href="/dashboard/lineup/${f.uid}" class="btn btn-secondary btn-sm">Line-up</a>` : ""}
           ${isPast && !isEvent ? `
           <button onclick="openResult('${f.uid}','${(f.home_team||'Home').replace(/'/g,"\\'")}','${(f.away_team||'Away').replace(/'/g,"\\'")}','${hasResult ? f.home_score : ""}','${hasResult ? f.away_score : ""}','${(f.scorers||'').replace(/'/g,"\\'")}','${(f.match_report||'').replace(/'/g,"\\'").replace(/\r?\n/g,"\\n")}')"
             class="btn btn-sm" style="background:${hasResult ? "var(--row-hover);color:var(--text-2);border:1px solid var(--border2)" : "#143620;color:#4ade80;border:1px solid #1a5a30"}">${hasResult ? "Edit Result" : "Add Result"}</button>` : ""}

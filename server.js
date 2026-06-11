@@ -579,6 +579,36 @@ function requireRole(...roles) {
   };
 }
 
+// Audit trail — best-effort, never blocks the action
+async function audit(teamId, user, action, detail) {
+  try {
+    await pool.query(
+      "INSERT INTO audit_log (team_id, user_email, action, detail) VALUES ($1, $2, $3, $4)",
+      [teamId, user ? user.email : null, action, detail || null]
+    );
+  } catch (e) {
+    console.error("[audit]", e.message);
+  }
+}
+
+// Per-squad delegation: squads a coach is restricted to (null = unrestricted)
+async function getManageableSquadIds(user) {
+  if (user.role !== "coach") return null;
+  const { rows } = await pool.query("SELECT squad_id FROM user_squads WHERE user_id = $1", [user.id]);
+  return rows.length ? rows.map(r => r.squad_id) : null;
+}
+
+// Can this user manage a fixture in this squad? (squadId null = club-wide)
+async function canManageSquad(user, squadId) {
+  const allowed = await getManageableSquadIds(user);
+  if (allowed === null) return true;
+  return squadId != null && allowed.includes(Number(squadId));
+}
+
+function squadDeniedFlash(req) {
+  req.session.flash = { type: "error", msg: "You can only manage fixtures for your assigned squads." };
+}
+
 async function loadSessionUser(req, res, next) {
   if (req.session.userId) {
     const { rows } = await pool.query(
@@ -651,10 +681,11 @@ app.get("/dashboard", requireLogin, async (req, res) => {
 
   const { rows: squads } = await pool.query(
     "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]);
+  const manageableSquadIds = await getManageableSquadIds(req.user);
 
   const flash = req.session.flash;
   delete req.session.flash;
-  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue, availability, squads));
+  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue, availability, squads, manageableSquadIds));
 });
 
 // Availability detail for one event — who responded what
@@ -717,6 +748,11 @@ app.get("/dashboard/fixtures/template", requireLogin, async (req, res) => {
 app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), async (req, res) => {
   if (!req.file) {
     req.session.flash = { type: "error", msg: "No file uploaded." };
+    return res.redirect("/dashboard");
+  }
+
+  if ((await getManageableSquadIds(req.user)) !== null) {
+    req.session.flash = { type: "error", msg: "Imports are limited to owners, managers and unrestricted coaches." };
     return res.redirect("/dashboard");
   }
 
@@ -793,6 +829,7 @@ app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
   const uid = `${team.slug}-${Date.now()}@calendar.fixture-app.com`;
   const summary = `${homeTeam} vs ${awayTeam}`;
   const sqId = await resolveSquadId(teamId, squadId);
+  if (!(await canManageSquad(req.user, sqId))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
 
   await pool.query(
     `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type, squad_id)
@@ -800,6 +837,7 @@ app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
     [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true", fixtureType || "league", sqId]
   );
 
+  audit(teamId, req.user, "fixture_added", summary);
   req.session.flash = { type: "success", msg: `Fixture added: ${summary}` };
   res.redirect("/dashboard");
 });
@@ -832,6 +870,7 @@ app.post("/dashboard/events/add", requireLogin, async (req, res) => {
 
   const recurrenceGroup = dates.length > 1 ? `${team.slug}-rec-${Date.now()}` : null;
   const sqId = await resolveSquadId(teamId, squadId);
+  if (!(await canManageSquad(req.user, sqId))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
 
   for (let i = 0; i < dates.length; i++) {
     const uid = `${team.slug}-${Date.now()}-${i}@calendar.fixture-app.com`;
@@ -846,6 +885,7 @@ app.post("/dashboard/events/add", requireLogin, async (req, res) => {
   const msg = dates.length > 1
     ? `${title.trim()} added — ${dates.length} weekly sessions created.`
     : `Event added: ${title.trim()}`;
+  audit(teamId, req.user, "event_added", `${eventKind}: ${title.trim()} x${dates.length}`);
   req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");
 });
@@ -861,6 +901,7 @@ app.post("/dashboard/fixtures/reschedule", requireLogin, async (req, res) => {
   );
   if (!existing.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
 
+  if (!(await canManageSquad(req.user, existing[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
   const oldStart = existing[0].start_time;
 
   const { rows: updated } = await pool.query(
@@ -871,6 +912,7 @@ app.post("/dashboard/fixtures/reschedule", requireLogin, async (req, res) => {
   );
 
   await sendRescheduleEmails(team, { ...updated[0], reason }, oldStart);
+  audit(teamId, req.user, "fixture_rescheduled", `${updated[0].summary} -> ${newStart}${reason ? " (" + reason + ")" : ""}`);
   req.session.flash = { type: "success", msg: `Fixture rescheduled. Subscribers notified.` };
   res.redirect("/dashboard");
 });
@@ -944,6 +986,9 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
   const teamId = req.user.team_id;
   const status = cancelType === "shown" ? "cancelled_shown" : "cancelled_hidden";
 
+  const { rows: preCancel } = await pool.query("SELECT squad_id FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, teamId]);
+  if (preCancel.length && !(await canManageSquad(req.user, preCancel[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+
   const { rows } = await pool.query(
     `UPDATE fixtures SET status=$1, sequence=sequence+1, updated_at=NOW()
      WHERE uid=$2 AND team_id=$3 RETURNING *`,
@@ -958,6 +1003,7 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
   const msg = cancelType === "shown"
     ? `Fixture marked as cancelled.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`
     : `Fixture cancelled and hidden.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`;
+  audit(teamId, req.user, "fixture_cancelled", `${rows[0].summary} (${cancelType})`);
   req.session.flash = { type: "success", msg };
   res.redirect("/dashboard");
 });
@@ -972,6 +1018,7 @@ app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   const { rows: existing } = await pool.query("SELECT * FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, req.user.team_id]);
   if (!existing.length) { req.session.flash = { type: "error", msg: "Fixture not found." }; return res.redirect("/dashboard"); }
   const oldVenue = existing[0].location;
+  if (!(await canManageSquad(req.user, existing[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
 
   const home = isHome === "true";
   const homeTeam = home ? teamName : opponent;
@@ -981,6 +1028,8 @@ app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   const venueChanged = (oldVenue || "") !== (newVenue || "");
 
   const sqId = await resolveSquadId(req.user.team_id, squadId);
+  if (!(await canManageSquad(req.user, sqId))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+  audit(req.user.team_id, req.user, "fixture_edited", summary);
 
   await pool.query(
     `UPDATE fixtures
@@ -1010,11 +1059,14 @@ app.post("/dashboard/fixtures/result", requireLogin, async (req, res) => {
     req.session.flash = { type: "error", msg: "Please enter valid scores." };
     return res.redirect("/dashboard");
   }
+  const { rows: preResult } = await pool.query("SELECT squad_id FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, req.user.team_id]);
+  if (preResult.length && !(await canManageSquad(req.user, preResult[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
   const { rows } = await pool.query(
     `UPDATE fixtures SET home_score=$1, away_score=$2, scorers=$3, match_report=$4, updated_at=NOW()
      WHERE uid=$5 AND team_id=$6 AND (event_kind IS NULL OR event_kind='fixture') RETURNING summary`,
     [hs, as, (scorers || "").trim() || null, (matchReport || "").trim() || null, uid, req.user.team_id]
   );
+  if (rows.length) audit(req.user.team_id, req.user, "result_saved", `${rows[0].summary} ${hs}-${as}`);
   req.session.flash = rows.length
     ? { type: "success", msg: `Result saved: ${rows[0].summary} ${hs}–${as}` }
     : { type: "error", msg: "Fixture not found." };
@@ -1034,6 +1086,9 @@ app.post("/dashboard/fixtures/result/clear", requireLogin, async (req, res) => {
 // Restore a cancelled fixture
 app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
   const { uid } = req.body;
+  const { rows: preRestore } = await pool.query("SELECT squad_id, summary FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, req.user.team_id]);
+  if (preRestore.length && !(await canManageSquad(req.user, preRestore[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+  if (preRestore.length) audit(req.user.team_id, req.user, "fixture_restored", preRestore[0].summary);
   await pool.query(
     `UPDATE fixtures SET status='active', sequence=sequence+1, updated_at=NOW() WHERE uid=$1 AND team_id=$2`,
     [uid, req.user.team_id]
@@ -1111,8 +1166,131 @@ app.post("/dashboard/messages/send", requireLogin, requireRole("owner", "manager
     [team.id, subject.trim(), body.trim(), sent]
   );
 
+  audit(team.id, req.user, "announcement_sent", `${subject.trim()} (${sent} recipients)`);
   req.session.flash = { type: "success", msg: `Announcement sent to ${sent} subscriber${sent === 1 ? "" : "s"}.` };
   res.redirect("/dashboard/messages");
+});
+
+// --- Player roster & line-ups ---
+
+app.get("/dashboard/players", requireLogin, async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const { rows: players } = await pool.query(
+    `SELECT p.*, sq.name AS squad_name FROM players p
+     LEFT JOIN squads sq ON sq.id = p.squad_id
+     WHERE p.team_id = $1 ORDER BY sq.name NULLS FIRST, p.name`, [req.user.team_id]);
+  const { rows: squads } = await pool.query(
+    "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [req.user.team_id]);
+  const flash = req.session.flash; delete req.session.flash;
+  const { playersPage } = require("./views/dashboard/players");
+  res.send(playersPage(req.user, teams[0], players, squads, flash));
+});
+
+app.post("/dashboard/players/add", requireLogin, async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) {
+    req.session.flash = { type: "error", msg: "Player name is required." };
+    return res.redirect("/dashboard/players");
+  }
+  const sqId = await resolveSquadId(req.user.team_id, req.body.squadId);
+  await pool.query("INSERT INTO players (team_id, squad_id, name) VALUES ($1, $2, $3)",
+    [req.user.team_id, sqId, name]);
+  audit(req.user.team_id, req.user, "player_added", name);
+  req.session.flash = { type: "success", msg: `${name} added to the roster.` };
+  res.redirect("/dashboard/players");
+});
+
+app.post("/dashboard/players/remove", requireLogin, async (req, res) => {
+  const { rows } = await pool.query(
+    "DELETE FROM players WHERE id = $1 AND team_id = $2 RETURNING name", [req.body.playerId, req.user.team_id]);
+  if (rows.length) audit(req.user.team_id, req.user, "player_removed", rows[0].name);
+  req.session.flash = { type: "success", msg: "Player removed." };
+  res.redirect("/dashboard/players");
+});
+
+// Line-up picker for one fixture
+app.get("/dashboard/lineup/:uid", requireLogin, async (req, res) => {
+  const { rows: events } = await pool.query(
+    `SELECT f.*, sq.name AS squad_name FROM fixtures f
+     LEFT JOIN squads sq ON sq.id = f.squad_id
+     WHERE f.uid = $1 AND f.team_id = $2`, [req.params.uid, req.user.team_id]);
+  if (!events.length) return res.redirect("/dashboard");
+  const fixture = events[0];
+  if (!(await canManageSquad(req.user, fixture.squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+
+  // Roster scope: squad fixtures see that squad + unassigned players; club-wide sees everyone
+  const { rows: players } = fixture.squad_id
+    ? await pool.query(
+        `SELECT p.*, sq.name AS squad_name FROM players p
+         LEFT JOIN squads sq ON sq.id = p.squad_id
+         WHERE p.team_id = $1 AND (p.squad_id = $2 OR p.squad_id IS NULL)
+         ORDER BY p.squad_id NULLS LAST, p.name`, [req.user.team_id, fixture.squad_id])
+    : await pool.query(
+        `SELECT p.*, sq.name AS squad_name FROM players p
+         LEFT JOIN squads sq ON sq.id = p.squad_id
+         WHERE p.team_id = $1 ORDER BY sq.name NULLS FIRST, p.name`, [req.user.team_id]);
+
+  const { rows: selected } = await pool.query(
+    "SELECT player_id FROM lineups WHERE fixture_id = $1", [fixture.id]);
+  const selectedIds = new Set(selected.map(r => r.player_id));
+
+  const flash = req.session.flash; delete req.session.flash;
+  const { lineupPage } = require("./views/dashboard/lineup");
+  res.send(lineupPage(req.user, fixture, players, selectedIds, flash));
+});
+
+app.post("/dashboard/lineup/:uid", requireLogin, async (req, res) => {
+  const { rows: events } = await pool.query(
+    "SELECT * FROM fixtures WHERE uid = $1 AND team_id = $2", [req.params.uid, req.user.team_id]);
+  if (!events.length) return res.redirect("/dashboard");
+  const fixture = events[0];
+  if (!(await canManageSquad(req.user, fixture.squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+
+  let ids = req.body.playerIds || [];
+  if (!Array.isArray(ids)) ids = [ids];
+
+  await pool.query("DELETE FROM lineups WHERE fixture_id = $1", [fixture.id]);
+  for (const pid of ids) {
+    await pool.query(
+      `INSERT INTO lineups (fixture_id, player_id)
+       SELECT $1, id FROM players WHERE id = $2 AND team_id = $3
+       ON CONFLICT DO NOTHING`,
+      [fixture.id, pid, req.user.team_id]);
+  }
+  audit(req.user.team_id, req.user, "lineup_saved", `${fixture.summary} (${ids.length} players)`);
+  req.session.flash = { type: "success", msg: `Line-up saved — ${ids.length} player${ids.length === 1 ? "" : "s"} selected.` };
+  res.redirect(`/dashboard/lineup/${req.params.uid}`);
+});
+
+// --- Activity log (owner) ---
+
+app.get("/dashboard/activity", requireLogin, requireRole("owner"), async (req, res) => {
+  const { rows: entries } = await pool.query(
+    "SELECT * FROM audit_log WHERE team_id = $1 ORDER BY created_at DESC LIMIT 200", [req.user.team_id]);
+  const { layout } = require("./views/dashboard/layout");
+  const fmtA = d => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const label = a => a.replace(/_/g, " ");
+  const content = `
+    <div class="page-header">
+      <h1>Activity Log</h1>
+      <p>Who did what — the last 200 actions in your club.</p>
+    </div>
+    <div class="card">
+      ${entries.length ? `
+      <table>
+        <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead>
+        <tbody>${entries.map(e => `
+          <tr>
+            <td style="white-space:nowrap;color:var(--text-4)">${fmtA(e.created_at)}</td>
+            <td>${e.user_email || "—"}</td>
+            <td style="text-transform:capitalize;font-weight:600">${label(e.action)}</td>
+            <td style="color:var(--text-3)">${e.detail || ""}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>` : `<p style="color:var(--text-4);font-size:0.85rem">No activity recorded yet.</p>`}
+    </div>
+  `;
+  res.send(layout("Activity Log", content, req.user));
 });
 
 // --- Team members & invitations (owner only) ---
@@ -1127,9 +1305,43 @@ app.get("/dashboard/members", requireLogin, requireRole("owner"), async (req, re
   const { rows: invites } = await pool.query(
     "SELECT * FROM invites WHERE team_id = $1 AND accepted_at IS NULL ORDER BY created_at DESC", [req.user.team_id]
   );
+  const { rows: squads } = await pool.query(
+    "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [req.user.team_id]);
+  const { rows: assignments } = await pool.query(
+    `SELECT us.user_id, us.squad_id FROM user_squads us
+     JOIN users u ON u.id = us.user_id WHERE u.team_id = $1`, [req.user.team_id]);
+  const assignMap = {};
+  assignments.forEach(a => {
+    assignMap[a.user_id] = assignMap[a.user_id] || [];
+    assignMap[a.user_id].push(a.squad_id);
+  });
   const flash = req.session.flash; delete req.session.flash;
   const { membersPage } = require("./views/dashboard/members");
-  res.send(membersPage(req.user, teams[0], members, invites, flash, APP_URL));
+  res.send(membersPage(req.user, teams[0], members, invites, flash, APP_URL, squads, assignMap));
+});
+
+// Assign a coach to specific squads (empty selection = unrestricted)
+app.post("/dashboard/members/squads", requireLogin, requireRole("owner"), async (req, res) => {
+  const { userId } = req.body;
+  let squadIds = req.body.squadIds || [];
+  if (!Array.isArray(squadIds)) squadIds = [squadIds];
+
+  const { rows: target } = await pool.query(
+    "SELECT * FROM users WHERE id = $1 AND team_id = $2", [userId, req.user.team_id]);
+  if (!target.length) return res.redirect("/dashboard/members");
+
+  await pool.query("DELETE FROM user_squads WHERE user_id = $1", [userId]);
+  for (const sid of squadIds) {
+    await pool.query(
+      `INSERT INTO user_squads (user_id, squad_id)
+       SELECT $1, id FROM squads WHERE id = $2 AND team_id = $3
+       ON CONFLICT DO NOTHING`,
+      [userId, sid, req.user.team_id]);
+  }
+  audit(req.user.team_id, req.user, "coach_squads_assigned",
+    `${target[0].email}: ${squadIds.length ? squadIds.length + " squad(s)" : "unrestricted"}`);
+  req.session.flash = { type: "success", msg: "Squad access updated." };
+  res.redirect("/dashboard/members");
 });
 
 app.post("/dashboard/members/invite", requireLogin, requireRole("owner"), async (req, res) => {
@@ -1177,6 +1389,7 @@ app.post("/dashboard/members/invite", requireLogin, requireRole("owner"), async 
     console.error("[invite] email failed:", e.message);
   }
 
+  audit(req.user.team_id, req.user, "member_invited", `${cleanEmail} as ${cleanRole}`);
   req.session.flash = { type: "success", msg: `Invite created for ${cleanEmail} — the link is shown below if you'd rather share it yourself.` };
   res.redirect("/dashboard/members");
 });
@@ -1206,6 +1419,7 @@ app.post("/dashboard/members/role", requireLogin, requireRole("owner"), async (r
     }
   }
   await pool.query("UPDATE users SET role = $1 WHERE id = $2", [role, userId]);
+  audit(req.user.team_id, req.user, "member_role_changed", `${target[0].email} -> ${role}`);
   req.session.flash = { type: "success", msg: "Role updated." };
   res.redirect("/dashboard/members");
 });
@@ -1227,6 +1441,7 @@ app.post("/dashboard/members/remove", requireLogin, requireRole("owner"), async 
     }
   }
   await pool.query("DELETE FROM users WHERE id = $1 AND team_id = $2", [userId, req.user.team_id]);
+  if (target.length) audit(req.user.team_id, req.user, "member_removed", target[0].email);
   req.session.flash = { type: "success", msg: "Member removed." };
   res.redirect("/dashboard/members");
 });
@@ -1321,6 +1536,15 @@ app.get("/dashboard/settings", requireLogin, async (req, res) => {
   res.send(settingsPage(req.user, teams[0], flash, squads));
 });
 
+// Toggle public line-up display (owner)
+app.post("/dashboard/settings/lineups", requireLogin, requireRole("owner"), async (req, res) => {
+  const show = req.body.showLineups === "1";
+  await pool.query("UPDATE teams SET show_lineups = $1 WHERE id = $2", [show, req.user.team_id]);
+  audit(req.user.team_id, req.user, "lineup_visibility_changed", show ? "public" : "private");
+  req.session.flash = { type: "success", msg: `Line-ups are now ${show ? "shown on" : "hidden from"} your public page.` };
+  res.redirect("/dashboard/settings");
+});
+
 // Squads CRUD (owner)
 app.post("/dashboard/settings/squads/add", requireLogin, requireRole("owner"), async (req, res) => {
   const name = (req.body.name || "").trim();
@@ -1330,6 +1554,7 @@ app.post("/dashboard/settings/squads/add", requireLogin, requireRole("owner"), a
   }
   try {
     await pool.query("INSERT INTO squads (team_id, name) VALUES ($1, $2)", [req.user.team_id, name]);
+    audit(req.user.team_id, req.user, "squad_added", name);
     req.session.flash = { type: "success", msg: `Squad "${name}" added.` };
   } catch (e) {
     req.session.flash = { type: "error", msg: e.code === "23505" ? "That squad already exists." : "Could not add squad." };
@@ -1745,6 +1970,20 @@ app.get("/:slug", async (req, res) => {
     "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]
   );
 
+  // Public line-ups (only when the club has opted in)
+  let lineupMap = {};
+  if (team.show_lineups) {
+    const { rows: lineupRows } = await pool.query(
+      `SELECT f.uid, p.name FROM lineups l
+       JOIN players p ON p.id = l.player_id
+       JOIN fixtures f ON f.id = l.fixture_id
+       WHERE f.team_id = $1 ORDER BY p.name`, [team.id]);
+    lineupRows.forEach(r => {
+      lineupMap[r.uid] = lineupMap[r.uid] || [];
+      lineupMap[r.uid].push(r.name);
+    });
+  }
+
   const host = req.headers.host;
   const calendarUrl = `https://${host}/calendar/${slug}.ics`;
 
@@ -1789,7 +2028,7 @@ app.get("/:slug", async (req, res) => {
   delete req.session.teamFlash;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads));
+  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads, lineupMap));
 });
 
 // --- Start ---

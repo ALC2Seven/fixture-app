@@ -182,10 +182,12 @@ function layout(title, content, user) {
     <nav class="sidebar">
       <div class="sidebar-section">Club</div>
       <a href="/dashboard">📋 Fixtures</a>
+      <a href="/dashboard/players">🧍 Players</a>
       ${canComms ? `<a href="/dashboard/subscribers">👥 Subscribers</a>` : ""}
       ${canComms ? `<a href="/dashboard/messages">📣 Messages</a>` : ""}
       <a href="/dashboard/feed">📅 Calendar Feed</a>
       ${isOwner ? `<a href="/dashboard/members">🤝 Members</a>` : ""}
+      ${isOwner ? `<a href="/dashboard/activity">📜 Activity</a>` : ""}
       <a href="/dashboard/settings">⚙️ Settings</a>
       ${user.role === "master" ? `
       <div class="sidebar-section" style="margin-top:16px">Master</div>

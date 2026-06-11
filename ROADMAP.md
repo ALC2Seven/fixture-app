@@ -60,22 +60,29 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
             reminders respect the squad; per-squad calendar feeds
             (?squad=ID) with squad-prefixed summaries; My Teams shows
             followed squad with squad-scoped calendar links.
-      - [ ] Per-squad role delegation (coach assigned to specific squads).
-      - [ ] Welfare/safeguarding officer role (with guardian work below).
+      - [x] Per-squad coach delegation: owners tick squads per coach on the
+            Members page; restricted coaches get view-only rows outside their
+            squads and every fixture route enforces it server-side (imports
+            limited to unrestricted users).
+      - [ ] Welfare/safeguarding officer role (later, with consent capture).
 - [~] Guardian-linked accounts:
       - [x] Family members on fan accounts (My Teams → My Family, up to 10);
             per-person Going/Maybe/Can't rows on team pages; availability stored
             per (event, email, family member); coach roll-up shows player names
             with the guardian email ("Alfie via parent@…").
-      - [ ] Consent/document capture, audit logs, parental comms visibility,
-            merged family view across teams.
+      - [x] Audit log: audit_log table records fixture lifecycle, results,
+            line-ups, members, squads and announcements; owner-only Activity
+            page (/dashboard/activity).
+      - [ ] Consent/document capture — moved to Phase 3 (belongs with registration).
 - [~] Matchday layer:
       - [x] Results (Add/Edit/Clear Result on past fixtures), scorers, match
             reports (collapsible on public page); played matches show the score
             "Full Time 3–1" with Win/Draw/Loss pills; W/D/L + score badges in
             the dashboard; season record strip (P/W/D/L/For/Against) with a
             last-5 form guide on the public page.
-      - [ ] Line-ups + player roster (prerequisite), deeper stats engine (tiered).
+      - [x] Player roster (/dashboard/players) + line-up picker per fixture;
+            public line-up display is opt-in (off by default for safeguarding).
+      - [ ] Deeper stats engine (tiered, later).
 - [ ] WhatsApp channel (Cloud API): opt-in outbound notifications, template messages,
       interactive Going/Maybe/Can't buttons updating FixtureApp via webhook.
       FixtureApp stays the source of truth; messages mirrored in-app for auditability.

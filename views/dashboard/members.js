@@ -19,12 +19,29 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function membersPage(user, team, members, invites, flash, appUrl) {
+function membersPage(user, team, members, invites, flash, appUrl, squads, assignMap) {
+  squads = squads || [];
+  assignMap = assignMap || {};
   const memberRows = members.map(m => {
     const isSelf = m.id === user.id;
+    const assigned = assignMap[m.id] || [];
+    const squadAssignUi = (m.role === "coach" && squads.length) ? `
+      <form method="POST" action="/dashboard/members/squads"
+            style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-top:8px;border-top:1px dashed var(--border)">
+        <input type="hidden" name="userId" value="${m.id}">
+        <span style="font-size:0.68rem;color:var(--text-4);text-transform:uppercase;letter-spacing:1px;font-weight:700">Squad access:</span>
+        ${squads.map(s => `
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:0.78rem;color:var(--text-2);cursor:pointer;text-transform:none;letter-spacing:0">
+          <input type="checkbox" name="squadIds" value="${s.id}" ${assigned.includes(s.id) ? "checked" : ""} style="width:auto;accent-color:#e02828">
+          ${s.name}
+        </label>`).join("")}
+        <button class="btn btn-secondary btn-sm">Save</button>
+        <span style="font-size:0.7rem;color:var(--text-4)">${assigned.length ? "" : "(none ticked = full access)"}</span>
+      </form>` : "";
     return `
     <tr>
-      <td><strong>${m.email}</strong>${isSelf ? ' <span style="color:var(--text-4);font-size:0.75rem">(you)</span>' : ""}</td>
+      <td><strong>${m.email}</strong>${isSelf ? ' <span style="color:var(--text-4);font-size:0.75rem">(you)</span>' : ""}
+        ${squadAssignUi}</td>
       <td>${ROLE_BADGES[m.role] || m.role}</td>
       <td style="color:var(--text-4)">${fmtDate(m.created_at)}</td>
       <td>

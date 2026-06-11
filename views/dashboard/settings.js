@@ -79,6 +79,21 @@ function settingsPage(user, team, flash, squads) {
         <button type="submit" class="btn btn-primary">Add Squad</button>
       </form>
     </div>
+
+    <!-- Line-up visibility -->
+    <div class="card">
+      <div class="card-title">Public Line-Ups</div>
+      <form method="POST" action="/dashboard/settings/lineups">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:10px;font-size:0.85rem;text-transform:none;letter-spacing:0;color:var(--text-2)">
+          <input type="checkbox" name="showLineups" value="1" ${team.show_lineups ? "checked" : ""} style="width:auto;accent-color:#e02828">
+          Show match line-ups on the public fixtures page
+        </label>
+        <p style="color:var(--text-4);font-size:0.75rem;margin-bottom:14px">
+          Off by default for safeguarding — player names stay private to your dashboard unless you turn this on.
+        </p>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </form>
+    </div>
     ` : ""}
 
     <!-- Account -->

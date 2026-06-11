@@ -98,8 +98,7 @@ function fixtureRow(fixture, isNext, theme, ctx) {
     ? `<span class="pill pill-home">Home</span>`
     : `<span class="pill pill-away">Away</span>`);
   const statusPill = cancelled
-    ? `<span class="pill pill-cancelled">Cancelled</span>`
-    : isNext ? `<span class="pill pill-next">Next Fixture</span>` : "";
+    ? `<span class="pill pill-cancelled">Cancelled</span>` : "";
 
   const squadPill = fixture.squad_name
     ? `<span class="pill pill-squad">${fixture.squad_name}</span>` : "";
@@ -185,13 +184,17 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
 
   return months.map(month => {
     const cards = month.days.map(day => {
+      const hasNext = markNextIndex >= 0 && day.items.some(({ index }) => index === markNextIndex);
       const rows = day.items
         .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme, ctx))
         .join("");
       return `
         <div class="date-group">
-          <div class="date-tab">${day.tab}</div>
-          <div class="date-card">${rows}</div>
+          <div class="date-tab-row">
+            <div class="date-tab">${day.tab}</div>
+            ${hasNext ? `<div class="next-tab">Next Fixture</div>` : ""}
+          </div>
+          <div class="date-card${hasNext ? " has-next" : ""}">${rows}</div>
         </div>`;
     }).join("");
     return `<div class="month-block"><div class="month-header">${month.label}</div>${cards}</div>`;
@@ -404,6 +407,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
     /* Date card with attached tab */
     .date-group { margin: 16px 0; }
+    .date-tab-row { display: flex; justify-content: space-between; align-items: flex-end; }
     .date-tab {
       display: inline-block; background: var(--tab-bg); color: #fff;
       font-size: 0.68rem; font-weight: 900; letter-spacing: 1.5px;
@@ -411,11 +415,18 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       border-radius: 8px 8px 0 0;
     }
     body.light .date-tab { color: #fff; }
+    .next-tab {
+      display: inline-block; background: #cc0000; color: #fff;
+      font-size: 0.68rem; font-weight: 900; letter-spacing: 1.5px;
+      text-transform: uppercase; padding: 8px 18px;
+      border-radius: 8px 8px 0 0; font-style: italic;
+    }
     .date-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 0 10px 10px 10px; box-shadow: var(--shadow);
       overflow: hidden;
     }
+    .date-card.has-next { border-radius: 0 0 10px 10px; }
 
     /* Fixture row: home | centre | away */
     .fx {

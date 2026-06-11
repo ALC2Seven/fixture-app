@@ -29,8 +29,10 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
       event (paid tiers), one per event, with tokenized one-tap Going/Maybe/Can't
       links that work without login (GET /rsvp, HMAC-signed). Later: push/WhatsApp,
       chase non-responders specifically.
-- [ ] **Announcement messaging** — broadcast from club to subscribers/members,
-      distinct from future conversational messaging. Message log retained.
+- [x] **Announcement messaging** — /dashboard/messages: compose broadcast to all
+      subscribers (Standard/Pro), confirmation prompt, HTML-escaped body with line
+      breaks, full send history retained in announcements table. Free tier sees upsell.
+      Later: role-based recipient filters, reply threads (Phase 2).
 - [ ] **Add-to-calendar UX** — one-tap Google / Apple / Outlook flows,
       per-fixture-type subscriptions, cleaner manage-subscription controls. (ECAL is the benchmark.)
 - [x] **Homepage redesign** — new concept flow (publish → share one link → stays in

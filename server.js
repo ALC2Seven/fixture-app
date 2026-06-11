@@ -951,6 +951,79 @@ app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
   res.redirect("/dashboard");
 });
 
+// Messages page — compose + history
+app.get("/dashboard/messages", requireLogin, async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const team = teams[0];
+  const { rows: announcements } = await pool.query(
+    "SELECT * FROM announcements WHERE team_id = $1 ORDER BY created_at DESC LIMIT 50", [team.id]
+  );
+  const { rows: subCount } = await pool.query(
+    "SELECT COUNT(*)::int AS n FROM subscribers WHERE team_id = $1", [team.id]
+  );
+  const flash = req.session.flash; delete req.session.flash;
+  const { messagesPage } = require("./views/dashboard/messages");
+  res.send(messagesPage(req.user, team, announcements, subCount[0].n, flash));
+});
+
+// Send an announcement to all subscribers
+app.post("/dashboard/messages/send", requireLogin, async (req, res) => {
+  const { subject, body } = req.body;
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const team = teams[0];
+
+  if (!(team.tier === "standard" || team.tier === "pro")) {
+    req.session.flash = { type: "error", msg: "Announcements are available on the Standard plan." };
+    return res.redirect("/dashboard/messages");
+  }
+  if (!subject?.trim() || !body?.trim()) {
+    req.session.flash = { type: "error", msg: "Subject and message are both required." };
+    return res.redirect("/dashboard/messages");
+  }
+
+  const emails = await getSubscriberEmails(team.id);
+  if (!emails.length) {
+    req.session.flash = { type: "error", msg: "No subscribers to send to yet." };
+    return res.redirect("/dashboard/messages");
+  }
+
+  // Escape HTML in user content, keep line breaks
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const bodyHtml = esc(body.trim()).replace(/\r?\n/g, "<br>");
+
+  let sent = 0;
+  try {
+    await resend.emails.send({
+      from: "Fixture Updates <onboarding@resend.dev>",
+      to: emails,
+      subject: `${team.name}: ${subject.trim()}`,
+      html: `
+        <p style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#999;margin-bottom:4px">Announcement from ${team.name}</p>
+        <h2 style="margin:0 0 16px">${esc(subject.trim())}</h2>
+        <div style="font-size:15px;line-height:1.6">${bodyHtml}</div>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0 12px">
+        <p style="color:#999;font-size:12px">
+          You're receiving this because you subscribe to ${team.name} on FixtureApp.
+          <a href="${APP_URL}/${team.slug}" style="color:#cc0000">View fixtures</a>
+        </p>
+      `,
+    });
+    sent = emails.length;
+  } catch (e) {
+    console.error("[messages] send failed:", e.message);
+    req.session.flash = { type: "error", msg: "Sending failed — please try again." };
+    return res.redirect("/dashboard/messages");
+  }
+
+  await pool.query(
+    "INSERT INTO announcements (team_id, subject, body, sent_to) VALUES ($1, $2, $3, $4)",
+    [team.id, subject.trim(), body.trim(), sent]
+  );
+
+  req.session.flash = { type: "success", msg: `Announcement sent to ${sent} subscriber${sent === 1 ? "" : "s"}.` };
+  res.redirect("/dashboard/messages");
+});
+
 // Subscribers page
 app.get("/dashboard/subscribers", requireLogin, async (req, res) => {
   const { rows: subs } = await pool.query(

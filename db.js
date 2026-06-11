@@ -103,6 +103,18 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
   `);
 
+  // Announcement broadcasts from club to subscribers (log retained for auditability)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id         SERIAL PRIMARY KEY,
+      team_id    INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      subject    VARCHAR(200) NOT NULL,
+      body       TEXT NOT NULL,
+      sent_to    INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
   // RSVP / availability responses (one row per person per event)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS availability (

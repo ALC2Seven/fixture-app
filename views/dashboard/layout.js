@@ -152,6 +152,7 @@ function layout(title, content, user) {
       <div class="sidebar-section">Club</div>
       <a href="/dashboard">📋 Fixtures</a>
       <a href="/dashboard/subscribers">👥 Subscribers</a>
+      <a href="/dashboard/messages">📣 Messages</a>
       <a href="/dashboard/feed">📅 Calendar Feed</a>
       <a href="/dashboard/settings">⚙️ Settings</a>
       ${user.role === "master" ? `

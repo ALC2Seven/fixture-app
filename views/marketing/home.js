@@ -10,36 +10,40 @@ function homepagePage(flash) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0c111d;
-      --bg-2: #0f1524;
-      --surface: #141b2d;
-      --surface-2: #1a2235;
-      --border: rgba(255,255,255,0.08);
-      --border-2: rgba(255,255,255,0.14);
-      --text: #f4f6fb;
-      --text-2: #aeb6c8;
-      --text-3: #7c8499;
-      --text-4: #565e72;
+      --bg: #eef0f4;
+      --bg-2: #f6f7f9;
+      --surface: #ffffff;
+      --surface-2: #f4f5f8;
+      --border: #e5e7eb;
+      --border-2: #d1d5db;
+      --text: #111827;
+      --text-2: #4b5563;
+      --text-3: #6b7280;
+      --text-4: #9ca3af;
       --red: #e02828;
       --red-dark: #b91c1c;
-      --shadow: 0 8px 30px rgba(0,0,0,0.45);
+      --shadow: 0 8px 30px rgba(16,24,40,0.08);
+      /* dark band (nav + hero) */
+      --navy: #0d1322;
+      --navy-2: #131a30;
+      --navy-text: #aeb6c8;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', Arial, sans-serif; line-height: 1.5; }
 
-    /* Nav */
+    /* Nav — stays a dark navy band over the light page */
     nav.topnav {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 36px; background: rgba(12,17,29,0.85); backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border);
+      padding: 16px 36px; background: rgba(13,19,34,0.95); backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
       position: sticky; top: 0; z-index: 50;
     }
-    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--text); text-decoration: none; font-style: italic; }
+    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: #fff; text-decoration: none; font-style: italic; }
     .nav-logo span { color: var(--red); }
     .nav-links { display: flex; align-items: center; gap: 26px; }
-    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a { color: var(--navy-text); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
+    .nav-links a:hover { color: #fff; }
     .nav-cta {
       background: var(--red); color: #fff !important; padding: 10px 20px;
       border-radius: 8px; font-weight: 700 !important;
@@ -57,29 +61,29 @@ function homepagePage(flash) {
     .btn-ghost { background: var(--surface); color: var(--text); border: 1px solid var(--border-2); }
     .btn-ghost:hover { border-color: var(--text-3); }
 
-    /* Hero */
+    /* Hero — navy band over the light page */
     .hero {
       position: relative; overflow: hidden;
       padding: 90px 24px 70px; text-align: center;
       background:
-        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(224,40,40,0.18), transparent),
-        radial-gradient(ellipse 50% 40% at 85% 20%, rgba(40,80,224,0.10), transparent),
-        var(--bg);
+        radial-gradient(ellipse 70% 50% at 50% -10%, rgba(224,40,40,0.20), transparent),
+        linear-gradient(160deg, var(--navy-2), var(--navy));
+      border-bottom: 3px solid var(--red);
     }
     .hero-tag {
       display: inline-flex; align-items: center; gap: 8px;
-      background: var(--surface); border: 1px solid var(--border-2);
-      color: var(--text-2); font-size: 0.74rem; font-weight: 600;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
+      color: var(--navy-text); font-size: 0.74rem; font-weight: 600;
       padding: 7px 16px; border-radius: 20px; margin-bottom: 28px;
     }
     .hero-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
     .hero h1 {
       font-size: clamp(2.3rem, 5.5vw, 4rem); font-weight: 900; letter-spacing: -1.5px;
-      line-height: 1.05; max-width: 820px; margin: 0 auto 22px;
+      line-height: 1.05; max-width: 820px; margin: 0 auto 22px; color: #fff;
     }
     .hero h1 em { font-style: italic; color: var(--red); }
     .hero > p {
-      color: var(--text-2); font-size: 1.12rem; max-width: 600px;
+      color: var(--navy-text); font-size: 1.12rem; max-width: 600px;
       margin: 0 auto 36px; line-height: 1.65;
     }
     .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 64px; }
@@ -113,7 +117,7 @@ function homepagePage(flash) {
     }
     .mock-rsvp-btn.on { background: #1a7a2e; border-color: #1a7a2e; color: #fff; }
     .mock-count { font-size: 0.7rem; color: var(--text-3); font-weight: 700; }
-    .mock-caption { text-align: center; color: var(--text-4); font-size: 0.76rem; margin-top: 14px; }
+    .mock-caption { text-align: center; color: #7c8499; font-size: 0.76rem; margin-top: 14px; }
 
     /* Sections */
     .section { max-width: 1020px; margin: 0 auto; padding: 84px 24px; }
@@ -208,7 +212,8 @@ function homepagePage(flash) {
     .cta-band {
       background: linear-gradient(135deg, var(--red), #8f1414);
       padding: 76px 24px; text-align: center; border-radius: 24px;
-      max-width: 1020px; margin: 0 auto 84px;
+      max-width: 1020px; margin: 0 auto 84px; color: #fff;
+      box-shadow: 0 14px 40px rgba(224,40,40,0.25);
     }
     .cta-band h2 { font-size: clamp(1.7rem, 3vw, 2.3rem); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
     .cta-band p { color: rgba(255,255,255,0.85); margin-bottom: 32px; font-size: 1rem; }
@@ -242,8 +247,8 @@ function homepagePage(flash) {
     }
 
     ${flash ? `
-    .flash { background: #0f2a17; border-left: 3px solid #22c55e; color: #86efac; padding: 12px 20px; text-align: center; font-size: 0.85rem; }
-    .flash.error { background: #2a1212; border-left-color: #ef4444; color: #fca5a5; }
+    .flash { background: #f0fdf4; border-left: 3px solid #22c55e; color: #166534; padding: 12px 20px; text-align: center; font-size: 0.85rem; }
+    .flash.error { background: #fef2f2; border-left-color: #ef4444; color: #b91c1c; }
     ` : ""}
   </style>
 </head>
@@ -281,7 +286,7 @@ ${flash ? `<div class="flash ${flash.type === "error" ? "error" : ""}">${flash.m
         <div class="mock-centre">
           <div class="mock-pills">
             <span class="mock-pill" style="background:var(--red);color:#fff">Home</span>
-            <span class="mock-pill" style="background:#2a2000;color:#f0b429">Cup</span>
+            <span class="mock-pill" style="background:#fef3c7;color:#92400e">Cup</span>
           </div>
           <div class="mock-time">15:00</div>
           <div class="mock-venue">Riverside Stadium</div>

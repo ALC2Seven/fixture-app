@@ -99,7 +99,8 @@ async function initDb() {
   await pool.query(`
     ALTER TABLE fixtures
       ADD COLUMN IF NOT EXISTS event_kind VARCHAR(20) DEFAULT 'fixture',
-      ADD COLUMN IF NOT EXISTS recurrence_group VARCHAR(80);
+      ADD COLUMN IF NOT EXISTS recurrence_group VARCHAR(80),
+      ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
   `);
 
   // RSVP / availability responses (one row per person per event)

@@ -33,6 +33,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Master admin key — used only for onboarding new teams via API
 const MASTER_KEY = process.env.MASTER_KEY || "master-changeme";
 const SESSION_SECRET = process.env.SESSION_SECRET || "changeme-session-secret";
+// Base URL used in email links (RSVP buttons, team page links)
+const APP_URL = (process.env.APP_URL || "https://fixture-app-production.up.railway.app").replace(/\/$/, "");
+const nodeCrypto = require("crypto");
+
+// Signed token so RSVP links in emails work without logging in
+function rsvpToken(uid, email) {
+  return nodeCrypto.createHmac("sha256", SESSION_SECRET)
+    .update(`${uid}|${email.toLowerCase()}`)
+    .digest("hex").slice(0, 32);
+}
+function rsvpLink(uid, email, status) {
+  const q = new URLSearchParams({ uid, email, status, token: rsvpToken(uid, email) });
+  return `${APP_URL}/rsvp?${q.toString()}`;
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -164,6 +178,88 @@ async function sendRescheduleEmails(team, fixture, oldStart) {
   });
 
   return emails.length;
+}
+
+// --- Event reminders with one-tap RSVP links ---
+
+const fmtShort = iso => new Date(iso).toLocaleDateString("en-GB",
+  { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }) + " UTC";
+
+function rsvpButtonsHtml(uid, email) {
+  const btn = (status, label, bg) =>
+    `<a href="${rsvpLink(uid, email, status)}"
+        style="display:inline-block;background:${bg};color:#ffffff;text-decoration:none;
+               font-weight:bold;font-size:14px;padding:12px 22px;border-radius:6px;margin:0 4px">${label}</a>`;
+  return `
+    <div style="text-align:center;margin:24px 0">
+      ${btn("going", "✓ Going", "#1a7a2e")}
+      ${btn("maybe", "? Maybe", "#b8860b")}
+      ${btn("no", "✗ Can't Attend", "#aa2222")}
+    </div>`;
+}
+
+// Sends a reminder for one event to every subscriber (individually, so RSVP links are personal)
+async function sendEventReminder(team, event) {
+  const emails = await getSubscriberEmails(team.id);
+  if (!emails.length) return 0;
+
+  const kindLabel = (event.event_kind && event.event_kind !== "fixture")
+    ? event.event_kind.charAt(0).toUpperCase() + event.event_kind.slice(1)
+    : "Fixture";
+
+  let sent = 0;
+  for (const email of emails) {
+    try {
+      await resend.emails.send({
+        from: "Fixture Updates <onboarding@resend.dev>",
+        to: email,
+        subject: `Reminder: ${event.summary} — ${fmtShort(event.start_time)}`,
+        html: `
+          <h2 style="margin-bottom:4px">${kindLabel} Reminder</h2>
+          <p style="font-size:16px"><strong>${event.summary}</strong></p>
+          <table style="border-collapse:collapse;font-family:sans-serif">
+            <tr><td style="padding:6px;color:#666">When:</td><td style="padding:6px"><strong>${fmtShort(event.start_time)}</strong></td></tr>
+            <tr><td style="padding:6px;color:#666">Where:</td><td style="padding:6px">${event.location || "TBC"}</td></tr>
+            ${event.description ? `<tr><td style="padding:6px;color:#666">Notes:</td><td style="padding:6px">${event.description}</td></tr>` : ""}
+          </table>
+          <p style="font-weight:bold;margin-top:20px;text-align:center">Can you make it? One tap — no login needed:</p>
+          ${rsvpButtonsHtml(event.uid, email)}
+          <p style="color:#666;font-size:12px;text-align:center">
+            <a href="${APP_URL}/${team.slug}" style="color:#cc0000">View all fixtures for ${team.name}</a>
+          </p>
+        `,
+      });
+      sent++;
+    } catch (e) {
+      console.error(`[reminders] failed for ${email}:`, e.message);
+    }
+  }
+  return sent;
+}
+
+// Hourly sweep: remind subscribers about events starting within the next 72 hours.
+// Paid tiers only (email features), once per event (reminder_sent_at guard).
+async function runReminderSweep() {
+  if (!process.env.RESEND_API_KEY) return;
+  try {
+    const { rows: due } = await pool.query(
+      `SELECT f.*, t.name AS team_name, t.slug AS team_slug, t.id AS t_id
+       FROM fixtures f JOIN teams t ON t.id = f.team_id
+       WHERE f.status = 'active'
+         AND f.reminder_sent_at IS NULL
+         AND f.start_time > NOW()
+         AND f.start_time <= NOW() + INTERVAL '72 hours'
+         AND t.tier IN ('standard', 'pro')`
+    );
+    for (const event of due) {
+      const team = { id: event.t_id, name: event.team_name, slug: event.team_slug };
+      const sent = await sendEventReminder(team, event);
+      await pool.query("UPDATE fixtures SET reminder_sent_at = NOW() WHERE id = $1", [event.id]);
+      if (sent) console.log(`[reminders] ${event.summary}: ${sent} reminder(s) sent`);
+    }
+  } catch (e) {
+    console.error("[reminders] sweep failed:", e.message);
+  }
 }
 
 // --- Routes ---
@@ -1139,6 +1235,64 @@ app.post("/:slug/subscribe", async (req, res) => {
   res.redirect(`/${slug}`);
 });
 
+// One-tap RSVP from email links — token-signed, no login needed
+app.get("/rsvp", async (req, res) => {
+  const { uid, email, status, token } = req.query;
+  if (!uid || !email || !token || !["going", "maybe", "no"].includes(status)) {
+    return res.status(400).send("Invalid RSVP link.");
+  }
+
+  const expected = rsvpToken(uid, email);
+  const a = Buffer.from(String(token));
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !nodeCrypto.timingSafeEqual(a, b)) {
+    return res.status(403).send("This RSVP link is not valid.");
+  }
+
+  const { rows } = await pool.query(
+    `SELECT f.*, t.name AS team_name, t.slug AS team_slug
+     FROM fixtures f JOIN teams t ON t.id = f.team_id WHERE f.uid = $1`, [uid]
+  );
+  if (!rows.length) return res.status(404).send("Event not found.");
+  const event = rows[0];
+
+  // Link to a fan account if one exists for this email
+  const { rows: fans } = await pool.query("SELECT id FROM fan_users WHERE email = $1", [email]);
+  const fanId = fans.length ? fans[0].id : null;
+
+  await pool.query(
+    `INSERT INTO availability (fixture_id, email, fan_user_id, status, updated_at)
+     VALUES ($1, $2, $3, $4, NOW())
+     ON CONFLICT (fixture_id, email)
+     DO UPDATE SET status = $4, fan_user_id = COALESCE($3, availability.fan_user_id), updated_at = NOW()`,
+    [event.id, email, fanId, status]
+  );
+
+  const labels = { going: "✓ Going", maybe: "? Maybe", no: "✗ Can't Attend" };
+  const colors = { going: "#1a7a2e", maybe: "#b8860b", no: "#aa2222" };
+  const when = fmtShort(event.start_time);
+  const otherBtn = (s) => status === s ? "" : `
+    <a href="/rsvp?${new URLSearchParams({ uid, email, status: s, token: rsvpToken(uid, email) })}"
+       style="display:inline-block;border:1px solid #444;color:#aaa;text-decoration:none;font-size:0.78rem;
+              font-weight:700;padding:8px 16px;border-radius:16px;margin:0 4px">${labels[s]}</a>`;
+
+  res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>RSVP — ${event.team_name}</title></head>
+    <body style="background:#1e2025;color:#fff;font-family:Arial,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#262a33;border:1px solid #2e3240;border-radius:12px;max-width:440px;width:100%;padding:36px 30px;text-align:center;border-top:3px solid ${colors[status]}">
+        <div style="font-size:2.4rem;margin-bottom:10px">${status === "going" ? "✅" : status === "maybe" ? "🤔" : "👋"}</div>
+        <h2 style="margin:0 0 6px;font-size:1.1rem;text-transform:uppercase;letter-spacing:1px">Response saved</h2>
+        <p style="color:#999;font-size:0.9rem;margin:0 0 18px">You're marked as
+          <strong style="color:${colors[status]}">${labels[status]}</strong> for:</p>
+        <p style="font-weight:900;font-size:1rem;margin:0 0 4px">${event.summary}</p>
+        <p style="color:#888;font-size:0.82rem;margin:0 0 22px">${when}${event.location ? ` — ${event.location}` : ""}</p>
+        <p style="color:#666;font-size:0.75rem;margin:0 0 10px">Changed your mind?</p>
+        <div style="margin-bottom:24px">${otherBtn("going")}${otherBtn("maybe")}${otherBtn("no")}</div>
+        <a href="/${event.team_slug}" style="color:#cc0000;font-size:0.82rem;text-decoration:none;font-weight:700">View all fixtures for ${event.team_name} →</a>
+      </div>
+    </body></html>`);
+});
+
 // One-tap RSVP from the public team page (logged-in fans)
 app.post("/:slug/rsvp", async (req, res) => {
   const { slug } = req.params;
@@ -1219,4 +1373,7 @@ initDb().then(() => {
   app.listen(PORT, () => {
     console.log(`Fixture feed running on port ${PORT}`);
   });
+  // Event reminder sweep: shortly after boot, then hourly
+  setTimeout(runReminderSweep, 30 * 1000);
+  setInterval(runReminderSweep, 60 * 60 * 1000);
 });

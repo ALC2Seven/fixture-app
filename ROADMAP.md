@@ -25,11 +25,18 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
       logged-in fans on the public page; coach sees ✓/?/✗ roll-up per event in the
       dashboard plus a detail page (/dashboard/availability/:uid). Still to come:
       tokenized one-tap RSVP links in emails (with reminders), notes UI, guardian responses (Phase 2).
-- [ ] **Automatic reminders** — email (later push/WhatsApp) before events and when no response.
+- [x] **Automatic reminders** — hourly sweep emails subscribers 72h before each
+      event (paid tiers), one per event, with tokenized one-tap Going/Maybe/Can't
+      links that work without login (GET /rsvp, HMAC-signed). Later: push/WhatsApp,
+      chase non-responders specifically.
 - [ ] **Announcement messaging** — broadcast from club to subscribers/members,
       distinct from future conversational messaging. Message log retained.
 - [ ] **Add-to-calendar UX** — one-tap Google / Apple / Outlook flows,
       per-fixture-type subscriptions, cleaner manage-subscription controls. (ECAL is the benchmark.)
+- [x] **Homepage redesign** — new concept flow (publish → share one link → stays in
+      sync), modern slick styling (Inter, deep navy, rounded cards, product mockup
+      with RSVP in hero, clubs-vs-supporters split section). Pricing/signup/dashboard
+      restyle to the same language still open.
 - [ ] **Mobile dashboard polish** — fixture add/edit/cancel and availability checks must be excellent on a phone.
 
 ## Phase 2 — Structure and trust

@@ -11,9 +11,14 @@ function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
     return `
     <div style="padding:18px 20px;background:var(--surface-2);margin-bottom:10px;border:1px solid var(--border);border-radius:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div>
-          <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#2563eb;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
-          <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          ${s.logo_mime ? `
+          <img src="/logo/${s.team_slug}?v=${new Date(s.logo_updated_at || Date.now()).getTime()}" alt=""
+            style="width:34px;height:34px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--border);padding:2px">` : ""}
+          <div>
+            <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#2563eb;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
+            <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</div>
+          </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <a href="/${s.team_slug}" class="btn btn-secondary btn-sm">View Fixtures</a>

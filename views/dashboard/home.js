@@ -114,9 +114,14 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
   const content = `
     ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
 
-    <div class="page-header">
-      <h1>${team.name}</h1>
-      <p>Manage your fixtures and subscribers.</p>
+    <div class="page-header" style="display:flex;align-items:center;gap:14px">
+      ${team.logo_mime ? `
+      <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt=""
+        style="width:46px;height:46px;object-fit:contain;border-radius:10px;background:var(--row-hover);border:1px solid var(--border);padding:4px">` : ""}
+      <div>
+        <h1>${team.name}</h1>
+        <p>Manage your fixtures and subscribers.</p>
+      </div>
     </div>
 
     <div class="stats">

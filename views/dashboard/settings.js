@@ -12,6 +12,34 @@ function settingsPage(user, team, flash, squads) {
     </div>
 
     ${isOwner ? `
+    <!-- Club Logo -->
+    <div class="card">
+      <div class="card-title">Club Logo</div>
+      <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+        ${team.logo_mime ? `
+        <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt="${team.name} logo"
+          style="width:72px;height:72px;object-fit:contain;border-radius:14px;background:var(--row-hover);border:1px solid var(--border);padding:6px">
+        ` : `
+        <div style="width:72px;height:72px;border-radius:14px;background:var(--row-hover);border:1px dashed var(--border2);display:flex;align-items:center;justify-content:center;color:var(--text-5);font-size:1.6rem">🛡️</div>
+        `}
+        <div style="flex:1;min-width:240px">
+          <form method="POST" action="/dashboard/settings/logo" enctype="multipart/form-data"
+                style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/webp" required
+              style="background:var(--input-bg);border:1px solid var(--border2);color:var(--text-3);padding:8px 12px;font-size:0.82rem;cursor:pointer;flex:1;min-width:160px;border-radius:8px">
+            <button type="submit" class="btn btn-primary">Upload</button>
+          </form>
+          <p style="color:var(--text-4);font-size:0.75rem;margin-top:8px">
+            PNG, JPG or WebP, up to 1MB. Square images look best — shown on your public page, dashboard and supporter pages.
+          </p>
+          ${team.logo_mime ? `
+          <form method="POST" action="/dashboard/settings/logo/remove" style="margin-top:4px">
+            <button class="btn btn-sm" style="background:none;color:var(--text-4);border:1px solid var(--border2)">Remove logo</button>
+          </form>` : ""}
+        </div>
+      </div>
+    </div>
+
     <!-- Club Details -->
     <div class="card">
       <div class="card-title">Club Details</div>

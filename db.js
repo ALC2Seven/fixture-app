@@ -51,6 +51,11 @@ async function initDb() {
 
     ALTER TABLE teams ALTER COLUMN theme SET DEFAULT 'light';
 
+    ALTER TABLE teams
+      ADD COLUMN IF NOT EXISTS logo BYTEA,
+      ADD COLUMN IF NOT EXISTS logo_mime VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS logo_updated_at TIMESTAMP;
+
     ALTER TABLE fixtures
       ADD COLUMN IF NOT EXISTS home_team VARCHAR(100),
       ADD COLUMN IF NOT EXISTS away_team VARCHAR(100),

@@ -343,6 +343,11 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       background: linear-gradient(160deg, #131a30, #0d1322);
       padding: 28px 20px 24px; border-bottom: 3px solid #cc0000; text-align: center;
     }
+    .hero-logo {
+      width: 56px; height: 56px; object-fit: contain;
+      background: rgba(255,255,255,0.92); border-radius: 12px; padding: 5px;
+      margin-bottom: 10px; box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+    }
     .hero h1 { font-size: 2.2rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; line-height: 1; font-style: italic; color: #fff; }
     .hero h1 span { color: #cc0000; }
     .hero p { margin: 6px auto 0; color: #aab; font-size: 0.8rem; max-width: 400px; }
@@ -647,6 +652,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   </div>` : ""}
 
   <div class="hero">
+    ${team.logo_mime ? `
+    <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt="${team.name} logo" class="hero-logo">` : ""}
     <h1>${team.name} <span>Fixtures</span></h1>
     <p>Upcoming and past fixtures for ${team.name}.</p>
     <div class="hero-actions">

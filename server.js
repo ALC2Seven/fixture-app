@@ -1536,6 +1536,37 @@ app.get("/dashboard/settings", requireLogin, async (req, res) => {
   res.send(settingsPage(req.user, teams[0], flash, squads));
 });
 
+// Upload club logo (owner) — stored in Postgres so it survives redeploys
+app.post("/dashboard/settings/logo", requireLogin, requireRole("owner"), upload.single("logo"), async (req, res) => {
+  if (!req.file) {
+    req.session.flash = { type: "error", msg: "Please choose an image file." };
+    return res.redirect("/dashboard/settings");
+  }
+  const allowed = ["image/png", "image/jpeg", "image/webp"];
+  if (!allowed.includes(req.file.mimetype)) {
+    req.session.flash = { type: "error", msg: "Logo must be a PNG, JPG or WebP image." };
+    return res.redirect("/dashboard/settings");
+  }
+  if (req.file.size > 1024 * 1024) {
+    req.session.flash = { type: "error", msg: "Logo must be under 1MB." };
+    return res.redirect("/dashboard/settings");
+  }
+  await pool.query(
+    "UPDATE teams SET logo=$1, logo_mime=$2, logo_updated_at=NOW() WHERE id=$3",
+    [req.file.buffer, req.file.mimetype, req.user.team_id]
+  );
+  audit(req.user.team_id, req.user, "logo_updated", `${req.file.mimetype}, ${Math.round(req.file.size / 1024)}KB`);
+  req.session.flash = { type: "success", msg: "Club logo updated." };
+  res.redirect("/dashboard/settings");
+});
+
+app.post("/dashboard/settings/logo/remove", requireLogin, requireRole("owner"), async (req, res) => {
+  await pool.query("UPDATE teams SET logo=NULL, logo_mime=NULL, logo_updated_at=NOW() WHERE id=$1", [req.user.team_id]);
+  audit(req.user.team_id, req.user, "logo_removed", null);
+  req.session.flash = { type: "success", msg: "Club logo removed." };
+  res.redirect("/dashboard/settings");
+});
+
 // Toggle public line-up display (owner)
 app.post("/dashboard/settings/lineups", requireLogin, requireRole("owner"), async (req, res) => {
   const show = req.body.showLineups === "1";
@@ -1768,7 +1799,7 @@ app.get("/fan/logout", (req, res) => {
 app.get("/my-teams", async (req, res) => {
   if (!req.fanUser) return res.redirect("/fan/login");
   const { rows } = await pool.query(`
-    SELECT s.*, t.name AS team_name, t.slug AS team_slug, t.tier, sq.name AS squad_name
+    SELECT s.*, t.name AS team_name, t.slug AS team_slug, t.tier, t.logo_mime, t.logo_updated_at, sq.name AS squad_name
     FROM subscribers s
     JOIN teams t ON t.id = s.team_id
     LEFT JOIN squads sq ON sq.id = s.squad_id
@@ -1858,6 +1889,16 @@ app.post("/:slug/subscribe", async (req, res) => {
   }
   req.session.teamFlash = flash;
   res.redirect(`/${slug}`);
+});
+
+// Serve a club's logo (cacheable; bump ?v= on change)
+app.get("/logo/:slug", async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT logo, logo_mime FROM teams WHERE slug = $1", [req.params.slug]);
+  if (!rows.length || !rows[0].logo) return res.status(404).send("No logo");
+  res.setHeader("Content-Type", rows[0].logo_mime || "image/png");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.send(rows[0].logo);
 });
 
 // One-tap RSVP from email links — token-signed, no login needed

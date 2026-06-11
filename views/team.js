@@ -104,6 +104,28 @@ function fixtureRow(fixture, isNext, theme, ctx) {
   const squadPill = fixture.squad_name
     ? `<span class="pill pill-squad">${fixture.squad_name}</span>` : "";
 
+  // Played match: show the score instead of kick-off time
+  const hasResult = !isEvent && fixture.home_score !== null && fixture.home_score !== undefined;
+  let outcomePill = "";
+  let centreMain = `<div class="fx-time">${d.time}</div>`;
+  let resultExtras = "";
+  if (hasResult) {
+    const clubScore = fixture.is_home ? fixture.home_score : fixture.away_score;
+    const oppScore  = fixture.is_home ? fixture.away_score : fixture.home_score;
+    const outcome = clubScore > oppScore ? "W" : clubScore < oppScore ? "L" : "D";
+    outcomePill = `<span class="pill pill-${outcome.toLowerCase()}">${outcome === "W" ? "Win" : outcome === "L" ? "Loss" : "Draw"}</span>`;
+    centreMain = `
+      <div class="fx-ft">Full Time</div>
+      <div class="fx-score">${fixture.home_score}<span class="fx-score-sep">–</span>${fixture.away_score}</div>`;
+    resultExtras = `
+      ${fixture.scorers ? `<div class="fx-scorers">⚽ ${fixture.scorers}</div>` : ""}
+      ${fixture.match_report ? `
+      <details class="fx-report">
+        <summary>Match report</summary>
+        <p>${String(fixture.match_report).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\r?\n/g, "<br>")}</p>
+      </details>` : ""}`;
+  }
+
   if (isEvent) {
     return `
     <div class="fx fx-event ${cancelled ? "fx-cancelled" : ""}" data-type="${key}" data-squad="${fixture.squad_id || 0}"
@@ -124,10 +146,11 @@ function fixtureRow(fixture, isNext, theme, ctx) {
          style="background:${cfg.rowBg}">
       <div class="fx-team fx-team-home">${fixture.home_team || fixture.summary}</div>
       <div class="fx-centre">
-        <div class="fx-pills">${statusPill}${homeAwayPill}${squadPill}${badgeHtml}</div>
-        <div class="fx-time">${d.time}</div>
+        <div class="fx-pills">${statusPill}${outcomePill}${homeAwayPill}${squadPill}${badgeHtml}</div>
+        ${centreMain}
         <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
         ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
+        ${resultExtras}
       </div>
       <div class="fx-team fx-team-away">${fixture.away_team || ""}</div>
       ${rsvpStrip(fixture, ctx)}
@@ -206,6 +229,45 @@ function buildSquadTabs(fixtures, squads) {
       ${present.map(s => `<button class="tab-btn squad-btn" data-squad="${s.id}" onclick="filterSquad('${s.id}')">${s.name}</button>`).join("")}
     </div>
   `;
+}
+
+// Season record strip + last-5 form guide, computed from played matches
+function buildSeasonRecord(fixtures) {
+  const played = fixtures
+    .filter(f =>
+      (!f.event_kind || f.event_kind === "fixture") &&
+      !String(f.status || "").startsWith("cancelled") &&
+      f.home_score !== null && f.home_score !== undefined)
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  if (!played.length) return "";
+
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0;
+  const formArr = [];
+  for (const f of played) {
+    const cs = f.is_home ? f.home_score : f.away_score;
+    const os = f.is_home ? f.away_score : f.home_score;
+    gf += cs; ga += os;
+    const o = cs > os ? "W" : cs < os ? "L" : "D";
+    if (o === "W") w++; else if (o === "L") l++; else d++;
+    formArr.push(o);
+  }
+  const form = formArr.slice(-5);
+
+  return `
+    <div class="season-record">
+      <div class="sr-stats">
+        <span class="sr-item">Played <strong>${played.length}</strong></span>
+        <span class="sr-item sr-w">Won <strong>${w}</strong></span>
+        <span class="sr-item sr-d">Drawn <strong>${d}</strong></span>
+        <span class="sr-item sr-l">Lost <strong>${l}</strong></span>
+        <span class="sr-item">For <strong>${gf}</strong></span>
+        <span class="sr-item">Against <strong>${ga}</strong></span>
+      </div>
+      <div class="sr-form">
+        <span class="sr-form-label">Form</span>
+        ${form.map(o => `<span class="form-dot form-${o.toLowerCase()}">${o}</span>`).join("")}
+      </div>
+    </div>`;
 }
 
 function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads) {
@@ -379,6 +441,49 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .pill-squad { background: #14203a; color: #60a5fa; }
     body.light .pill-squad { background: #dbeafe; color: #1e40af; }
     .squad-bar { margin-top: 8px; }
+    .pill-w { background: #143620; color: #4ade80; }
+    .pill-d { background: #2a2410; color: #f0b429; }
+    .pill-l { background: #2a1010; color: #f87171; }
+    body.light .pill-w { background: #dcfce7; color: #166534; }
+    body.light .pill-d { background: #fef3c7; color: #92400e; }
+    body.light .pill-l { background: #fee2e2; color: #b91c1c; }
+
+    /* Played match score */
+    .fx-ft { font-size: 0.62rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-4); margin-bottom: 2px; }
+    .fx-score { font-size: 1.7rem; font-weight: 900; letter-spacing: 1px; line-height: 1.1; }
+    .fx-score-sep { color: #cc0000; padding: 0 6px; }
+    .fx-scorers { font-size: 0.74rem; color: var(--text-3); margin-top: 5px; }
+    .fx-report { margin-top: 8px; max-width: 420px; margin-left: auto; margin-right: auto; }
+    .fx-report summary {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      color: #cc0000; cursor: pointer; list-style: none;
+    }
+    .fx-report summary::after { content: " ▾"; }
+    .fx-report[open] summary::after { content: " ▴"; }
+    .fx-report p { font-size: 0.8rem; color: var(--text-2); line-height: 1.6; margin-top: 8px; text-align: left; }
+
+    /* Season record */
+    .season-record {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: var(--shadow); padding: 12px 20px; margin-top: 16px;
+    }
+    .sr-stats { display: flex; gap: 16px; flex-wrap: wrap; }
+    .sr-item { font-size: 0.72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
+    .sr-item strong { color: var(--text); font-size: 0.95rem; margin-left: 3px; }
+    .sr-w strong { color: #4ade80; }
+    .sr-d strong { color: #f0b429; }
+    .sr-l strong { color: #f87171; }
+    .sr-form { display: flex; gap: 5px; align-items: center; }
+    .sr-form-label { font-size: 0.68rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
+    .form-dot {
+      width: 22px; height: 22px; border-radius: 50%; display: inline-flex;
+      align-items: center; justify-content: center;
+      font-size: 0.62rem; font-weight: 900; color: #fff;
+    }
+    .form-w { background: #1a7a2e; }
+    .form-d { background: #b8860b; }
+    .form-l { background: #aa2222; }
     .pill-next { background: #cc0000; color: #fff; }
     .pill-cancelled { background: var(--text-4); color: var(--surface); }
     .fx-time { font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; }
@@ -586,6 +691,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
+    ${buildSeasonRecord(visible)}
     ${buildSquadTabs(upcoming, squads)}
     ${buildTabs(upcoming, theme)}
     ${past.length > 0 ? `

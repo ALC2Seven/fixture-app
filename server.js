@@ -1001,6 +1001,36 @@ app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   res.redirect("/dashboard");
 });
 
+// Record or update a match result
+app.post("/dashboard/fixtures/result", requireLogin, async (req, res) => {
+  const { uid, homeScore, awayScore, scorers, matchReport } = req.body;
+  const hs = parseInt(homeScore, 10);
+  const as = parseInt(awayScore, 10);
+  if (isNaN(hs) || isNaN(as) || hs < 0 || as < 0 || hs > 999 || as > 999) {
+    req.session.flash = { type: "error", msg: "Please enter valid scores." };
+    return res.redirect("/dashboard");
+  }
+  const { rows } = await pool.query(
+    `UPDATE fixtures SET home_score=$1, away_score=$2, scorers=$3, match_report=$4, updated_at=NOW()
+     WHERE uid=$5 AND team_id=$6 AND (event_kind IS NULL OR event_kind='fixture') RETURNING summary`,
+    [hs, as, (scorers || "").trim() || null, (matchReport || "").trim() || null, uid, req.user.team_id]
+  );
+  req.session.flash = rows.length
+    ? { type: "success", msg: `Result saved: ${rows[0].summary} ${hs}–${as}` }
+    : { type: "error", msg: "Fixture not found." };
+  res.redirect("/dashboard");
+});
+
+// Clear a result
+app.post("/dashboard/fixtures/result/clear", requireLogin, async (req, res) => {
+  await pool.query(
+    `UPDATE fixtures SET home_score=NULL, away_score=NULL, scorers=NULL, match_report=NULL, updated_at=NOW()
+     WHERE uid=$1 AND team_id=$2`, [req.body.uid, req.user.team_id]
+  );
+  req.session.flash = { type: "success", msg: "Result cleared." };
+  res.redirect("/dashboard");
+});
+
 // Restore a cancelled fixture
 app.post("/dashboard/fixtures/restore", requireLogin, async (req, res) => {
   const { uid } = req.body;

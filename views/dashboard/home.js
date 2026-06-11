@@ -32,15 +32,28 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
     duty:     '<span class="badge" style="background:#0a2025;color:#4fd1c5">Duty</span>',
   };
 
+  const now2 = new Date();
   const fixtureRows = fixtures.map(f => {
     const cancelled = f.status === "cancelled_hidden" || f.status === "cancelled_shown";
     const isEvent = f.event_kind && f.event_kind !== "fixture";
+    const isPast = new Date(f.start_time) < now2;
+    const hasResult = f.home_score !== null && f.home_score !== undefined;
     const rowStyle = cancelled ? "opacity:0.5" : "";
+
+    let resultBadge = "";
+    if (hasResult && !isEvent) {
+      const clubScore = f.is_home ? f.home_score : f.away_score;
+      const oppScore  = f.is_home ? f.away_score : f.home_score;
+      const outcome = clubScore > oppScore ? "W" : clubScore < oppScore ? "L" : "D";
+      const oc = { W: "background:#143620;color:#4ade80", L: "background:#2a1010;color:#f87171", D: "background:#2a2410;color:#f0b429" }[outcome];
+      resultBadge = `<span class="badge" style="${oc}">${outcome} ${f.home_score}–${f.away_score}</span>`;
+    }
+
     const statusBadge = f.status === "cancelled_shown"
       ? '<span class="badge" style="background:#2a1010;color:#ff6666">CANCELLED</span>'
       : f.status === "cancelled_hidden"
       ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
-      : "";
+      : resultBadge;
     const typeBadge = isEvent
       ? (KIND_BADGES[f.event_kind] || KIND_BADGES.training)
       : (TYPE_BADGES[f.fixture_type || "league"] || TYPE_BADGES.league);
@@ -74,6 +87,9 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       <td>${availCell}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${!cancelled ? `
+          ${isPast && !isEvent ? `
+          <button onclick="openResult('${f.uid}','${(f.home_team||'Home').replace(/'/g,"\\'")}','${(f.away_team||'Away').replace(/'/g,"\\'")}','${hasResult ? f.home_score : ""}','${hasResult ? f.away_score : ""}','${(f.scorers||'').replace(/'/g,"\\'")}','${(f.match_report||'').replace(/'/g,"\\'").replace(/\r?\n/g,"\\n")}')"
+            class="btn btn-sm" style="background:${hasResult ? "var(--row-hover);color:var(--text-2);border:1px solid var(--border2)" : "#143620;color:#4ade80;border:1px solid #1a5a30"}">${hasResult ? "Edit Result" : "Add Result"}</button>` : ""}
           <button onclick="openReschedule('${f.uid}','${f.summary.replace(/'/g,"\\'")}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
           ${!isEvent ? `
@@ -439,6 +455,23 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
         document.getElementById('edit-modal').style.display = 'none';
       }
 
+      // Result modal
+      function openResult(uid, homeTeam, awayTeam, homeScore, awayScore, scorers, report) {
+        document.getElementById('result-uid').value = uid;
+        document.getElementById('result-home-label').textContent = homeTeam;
+        document.getElementById('result-away-label').textContent = awayTeam;
+        document.getElementById('result-home').value = homeScore;
+        document.getElementById('result-away').value = awayScore;
+        document.getElementById('result-scorers').value = scorers;
+        document.getElementById('result-report').value = report;
+        document.getElementById('result-clear-uid').value = uid;
+        document.getElementById('result-clear-wrap').style.display = homeScore === '' ? 'none' : 'block';
+        document.getElementById('result-modal').style.display = 'flex';
+      }
+      function closeResult() {
+        document.getElementById('result-modal').style.display = 'none';
+      }
+
       // Cancel modal
       function openCancel(uid, name) {
         document.getElementById('cancel-uid').value = uid;
@@ -498,6 +531,45 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             <button type="button" onclick="closeEdit()" class="btn btn-secondary">Cancel</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:100;align-items:center;justify-content:center;">
+      <div class="card" style="width:520px;max-width:90vw;max-height:90vh;overflow-y:auto">
+        <div class="card-title">Match Result</div>
+        <form method="POST" action="/dashboard/fixtures/result">
+          <input type="hidden" name="uid" id="result-uid">
+          <div class="form-row" style="align-items:flex-end">
+            <div class="form-group">
+              <label id="result-home-label">Home</label>
+              <input type="number" name="homeScore" id="result-home" required min="0" max="999" placeholder="0">
+            </div>
+            <div style="font-weight:900;color:var(--text-4);padding:0 4px 12px">–</div>
+            <div class="form-group">
+              <label id="result-away-label">Away</label>
+              <input type="number" name="awayScore" id="result-away" required min="0" max="999" placeholder="0">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label>Scorers (optional)</label>
+            <input type="text" name="scorers" id="result-scorers" placeholder="e.g. Smith 12', Jones 55', 80'">
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Match Report (optional)</label>
+            <textarea name="matchReport" id="result-report" rows="4" placeholder="A few lines about the game — shown on your public page."></textarea>
+          </div>
+          <div style="display:flex;gap:10px">
+            <button type="submit" class="btn btn-primary">Save Result</button>
+            <button type="button" onclick="closeResult()" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+        <div id="result-clear-wrap" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <form method="POST" action="/dashboard/fixtures/result/clear" onsubmit="return confirm('Clear this result?')">
+            <input type="hidden" name="uid" id="result-clear-uid">
+            <button class="btn btn-sm" style="background:none;color:var(--text-4);border:1px solid var(--border2)">Clear result</button>
+          </form>
+        </div>
       </div>
     </div>
 

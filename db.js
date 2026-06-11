@@ -103,6 +103,15 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMP;
   `);
 
+  // Matchday: result + scorers + report (result exists when home_score IS NOT NULL)
+  await pool.query(`
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS home_score INTEGER,
+      ADD COLUMN IF NOT EXISTS away_score INTEGER,
+      ADD COLUMN IF NOT EXISTS scorers TEXT,
+      ADD COLUMN IF NOT EXISTS match_report TEXT;
+  `);
+
   // Roles: owner (club creator), manager (fixtures+comms), coach (fixtures only), master (platform).
   // Legacy 'admin' rows become owners — safe to re-run because nothing creates 'admin' anymore.
   await pool.query(`UPDATE users SET role='owner' WHERE role='admin';`);

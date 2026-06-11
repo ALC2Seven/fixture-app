@@ -69,8 +69,13 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
             with the guardian email ("Alfie via parent@…").
       - [ ] Consent/document capture, audit logs, parental comms visibility,
             merged family view across teams.
-- [ ] Matchday layer: line-ups, results, scorers, simple league table, match reports.
-      (Deeper stats engine later, tiered.)
+- [~] Matchday layer:
+      - [x] Results (Add/Edit/Clear Result on past fixtures), scorers, match
+            reports (collapsible on public page); played matches show the score
+            "Full Time 3–1" with Win/Draw/Loss pills; W/D/L + score badges in
+            the dashboard; season record strip (P/W/D/L/For/Against) with a
+            last-5 form guide on the public page.
+      - [ ] Line-ups + player roster (prerequisite), deeper stats engine (tiered).
 - [ ] WhatsApp channel (Cloud API): opt-in outbound notifications, template messages,
       interactive Going/Maybe/Can't buttons updating FixtureApp via webhook.
       FixtureApp stays the source of truth; messages mirrored in-app for auditability.

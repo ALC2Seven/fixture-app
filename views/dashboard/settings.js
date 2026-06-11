@@ -68,10 +68,10 @@ function settingsPage(user, team, flash) {
       <form method="POST" action="/dashboard/settings/theme">
         <div class="theme-options" style="margin-bottom:16px">
           <label class="theme-opt ${(team.theme || 'dark') === 'dark' ? 'selected' : ''}" onclick="selectTheme('dark')">
-            <div class="theme-swatch" style="background:#111;border-color:#333"></div>
+            <div class="theme-swatch" style="background:#0c111d;border-color:#2a3145"></div>
             <div>
               <div class="theme-label">Dark</div>
-              <div class="theme-sub">Default — dark background</div>
+              <div class="theme-sub">Default — deep navy</div>
             </div>
           </label>
           <label class="theme-opt ${team.theme === 'light' ? 'selected' : ''}" onclick="selectTheme('light')">

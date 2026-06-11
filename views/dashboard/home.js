@@ -58,7 +58,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       <td colspan="3"><strong>${f.summary}</strong></td>
       ` : `
       <td><strong>${f.home_team || f.summary}</strong></td>
-      <td style="color:#cc0000;font-weight:900">VS</td>
+      <td style="color:var(--red);font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
       `}
       <td style="color:#888">${f.location || "TBC"}</td>
@@ -73,7 +73,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
           <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}','${fType}')"
             class="btn btn-secondary btn-sm">Edit</button>` : ""}
           <button onclick="openCancel('${f.uid}','${f.summary.replace(/'/g,"\\'")}')"
-            class="btn btn-sm" style="background:#2a1010;color:#ff6666">Cancel</button>
+            class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Cancel</button>
         ` : `
           <form method="POST" action="/dashboard/fixtures/restore">
             <input type="hidden" name="uid" value="${f.uid}">
@@ -132,7 +132,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <a href="/dashboard/fixtures/template" class="btn btn-secondary">⬇ Download Template</a>
         <input type="file" name="file" accept=".xlsx,.csv" required
-          style="background:#111;border:1px solid #333;color:#aaa;padding:8px 12px;font-size:0.82rem;cursor:pointer;flex:1;min-width:160px">
+          style="background:var(--input-bg);border:1px solid var(--border2);color:var(--text-3);padding:8px 12px;font-size:0.82rem;cursor:pointer;flex:1;min-width:160px;border-radius:8px">
         <button type="submit" class="btn btn-primary">Upload & Import</button>
       </form>
     </div>
@@ -278,8 +278,8 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
         <p id="reschedule-name" style="color:#fff;font-size:1rem;font-weight:700;margin-bottom:6px"></p>
 
         <!-- Current date display -->
-        <div style="background:#111;border-left:3px solid #555;padding:8px 12px;margin-bottom:16px;font-size:0.82rem;color:#888">
-          Current date: <span id="reschedule-current" style="color:#aaa;font-weight:700"></span>
+        <div style="background:var(--input-bg);border-left:3px solid var(--border2);padding:8px 12px;margin-bottom:16px;font-size:0.82rem;color:var(--text-3);border-radius:0 8px 8px 0">
+          Current date: <span id="reschedule-current" style="color:var(--text-2);font-weight:700"></span>
         </div>
 
         <form method="POST" action="/dashboard/fixtures/reschedule">
@@ -485,23 +485,23 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
         <form method="POST" action="/dashboard/fixtures/cancel">
           <input type="hidden" name="uid" id="cancel-uid">
           <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
-            <label style="display:flex;align-items:flex-start;gap:12px;background:#1f1f1f;padding:14px;cursor:pointer;border:1px solid #333">
+            <label style="display:flex;align-items:flex-start;gap:12px;background:var(--row-hover);padding:14px;cursor:pointer;border:1px solid var(--border2);border-radius:10px">
               <input type="radio" name="cancelType" value="shown" checked style="margin-top:3px;width:auto">
               <div>
                 <div style="font-weight:700;font-size:0.85rem">Show as Cancelled</div>
-                <div style="color:#666;font-size:0.78rem;margin-top:3px">Fixture stays on the public page marked as CANCELLED. Calendar shows it as cancelled.</div>
+                <div style="color:var(--text-4);font-size:0.78rem;margin-top:3px">Fixture stays on the public page marked as CANCELLED. Calendar shows it as cancelled.</div>
               </div>
             </label>
-            <label style="display:flex;align-items:flex-start;gap:12px;background:#1f1f1f;padding:14px;cursor:pointer;border:1px solid #333">
+            <label style="display:flex;align-items:flex-start;gap:12px;background:var(--row-hover);padding:14px;cursor:pointer;border:1px solid var(--border2);border-radius:10px">
               <input type="radio" name="cancelType" value="hidden" style="margin-top:3px;width:auto">
               <div>
                 <div style="font-weight:700;font-size:0.85rem">Remove Completely</div>
-                <div style="color:#666;font-size:0.78rem;margin-top:3px">Hidden from public page. Removed from subscribed calendars automatically.</div>
+                <div style="color:var(--text-4);font-size:0.78rem;margin-top:3px">Hidden from public page. Removed from subscribed calendars automatically.</div>
               </div>
             </label>
           </div>
           <div style="display:flex;gap:10px">
-            <button type="submit" class="btn btn-sm" style="background:#cc0000;color:#fff">Confirm Cancellation</button>
+            <button type="submit" class="btn btn-sm" style="background:var(--red);color:#fff">Confirm Cancellation</button>
             <button type="button" onclick="closeCancel()" class="btn btn-secondary">Keep Fixture</button>
           </div>
         </form>

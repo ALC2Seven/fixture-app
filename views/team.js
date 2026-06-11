@@ -197,19 +197,22 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${team.name} — Fixtures</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg:        #1e2025;
-      --surface:   #262a33;
-      --border:    #2e3240;
-      --text:      #ffffff;
-      --text-2:    #cccccc;
-      --text-3:    #888888;
-      --text-4:    #666666;
-      --month-hdr: #888888;
-      --empty:     #555555;
-      --shadow:    0 2px 10px rgba(0,0,0,0.35);
-      --tab-bg:    #2e3240;
+      --bg:        #0c111d;
+      --surface:   #141b2d;
+      --border:    rgba(255,255,255,0.09);
+      --text:      #f4f6fb;
+      --text-2:    #c4cad8;
+      --text-3:    #8a93a8;
+      --text-4:    #6b7488;
+      --month-hdr: #8a93a8;
+      --empty:     #565e72;
+      --shadow:    0 6px 24px rgba(0,0,0,0.4);
+      --tab-bg:    #1b2240;
     }
     body.light {
       --bg:        #eef0f4;
@@ -226,7 +229,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--text); font-family: Arial, sans-serif; min-height: 100vh; }
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', Arial, sans-serif; min-height: 100vh; line-height: 1.5; }
+    button, input { font-family: inherit; }
 
     /* Hero */
     .hero {

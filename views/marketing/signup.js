@@ -6,73 +6,86 @@ function signupPage(error, prefill) {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Sign Up — FixtureApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg: #0c111d; --surface: #141b2d; --surface-2: #1a2235;
+      --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.14);
+      --text: #f4f6fb; --text-2: #aeb6c8; --text-3: #7c8499; --text-4: #565e72;
+      --red: #e02828; --red-dark: #b91c1c;
+    }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #1a1a1a; color: #fff; font-family: Arial, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    body {
+      background: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(224,40,40,0.14), transparent), var(--bg);
+      color: var(--text); font-family: 'Inter', Arial, sans-serif;
+      min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5;
+    }
 
     nav {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 40px; border-bottom: 1px solid #2a2a2a; background: #111;
+      padding: 16px 36px; border-bottom: 1px solid var(--border);
     }
-    .nav-logo { font-size: 1.1rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; color: #fff; text-decoration: none; }
-    .nav-logo span { color: #cc0000; }
-    .nav-links { display: flex; align-items: center; gap: 20px; }
-    .nav-links a { color: #aaa; text-decoration: none; font-size: 0.82rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-    .nav-links a:hover { color: #fff; }
+    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--text); text-decoration: none; font-style: italic; }
+    .nav-logo span { color: var(--red); }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
+    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
+    .nav-links a:hover { color: var(--text); }
 
     main {
       flex: 1; display: flex; align-items: flex-start; justify-content: center;
-      padding: 60px 20px;
+      padding: 56px 20px;
     }
     .signup-wrap { width: 100%; max-width: 480px; }
 
-    .signup-header { text-align: center; margin-bottom: 36px; }
-    .signup-header h1 { font-size: 1.8rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; }
-    .signup-header p { color: #888; font-size: 0.88rem; }
+    .signup-header { text-align: center; margin-bottom: 32px; }
+    .signup-header h1 { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.8px; margin-bottom: 8px; }
+    .signup-header p { color: var(--text-2); font-size: 0.92rem; }
 
-    .card { background: #242424; padding: 36px; border: 1px solid #2e2e2e; }
+    .card { background: var(--surface); padding: 36px; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); }
 
     .error-box {
-      background: #2a1f1f; border-left: 3px solid #cc0000;
-      color: #ff8888; padding: 12px 16px; font-size: 0.85rem;
-      margin-bottom: 20px;
+      background: rgba(224,40,40,0.1); border: 1px solid rgba(224,40,40,0.35);
+      color: #fca5a5; padding: 12px 16px; font-size: 0.85rem;
+      margin-bottom: 20px; border-radius: 10px;
     }
 
     .form-group { margin-bottom: 18px; }
-    label { display: block; font-size: 0.78rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #888; margin-bottom: 7px; }
+    label { display: block; font-size: 0.76rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); margin-bottom: 7px; }
     input[type="text"], input[type="email"], input[type="password"] {
-      width: 100%; background: #111; border: 1px solid #333; color: #fff;
-      padding: 12px 14px; font-size: 0.9rem; outline: none;
+      width: 100%; background: var(--bg); border: 1px solid var(--border-2); color: var(--text);
+      padding: 12px 14px; font-size: 0.9rem; outline: none; border-radius: 10px;
+      font-family: inherit; transition: border-color 0.15s;
     }
-    input:focus { border-color: #cc0000; }
-    .input-hint { font-size: 0.75rem; color: #555; margin-top: 5px; }
-    .slug-preview { font-size: 0.78rem; color: #666; margin-top: 6px; }
-    .slug-preview span { color: #cc0000; }
+    input:focus { border-color: var(--red); }
+    .input-hint { font-size: 0.75rem; color: var(--text-4); margin-top: 5px; }
+    .slug-preview { font-size: 0.78rem; color: var(--text-3); margin-top: 6px; }
+    .slug-preview span { color: var(--red); }
 
     .plan-note {
-      background: #1f1f1f; border: 1px solid #2e2e2e;
-      padding: 14px 16px; margin-bottom: 24px; font-size: 0.82rem; color: #888;
-      display: flex; gap: 10px; align-items: flex-start;
+      background: var(--surface-2); border: 1px solid var(--border);
+      padding: 14px 16px; margin-bottom: 24px; font-size: 0.82rem; color: var(--text-2);
+      display: flex; gap: 10px; align-items: flex-start; border-radius: 12px;
     }
-    .plan-note strong { color: #fff; }
+    .plan-note strong { color: var(--text); }
 
     .btn-submit {
-      width: 100%; background: #cc0000; color: #fff; border: none;
-      padding: 14px; font-size: 0.9rem; font-weight: 900; letter-spacing: 1px;
-      text-transform: uppercase; cursor: pointer; margin-bottom: 16px;
+      width: 100%; background: var(--red); color: #fff; border: none;
+      padding: 14px; font-size: 0.92rem; font-weight: 700; font-family: inherit;
+      cursor: pointer; margin-bottom: 16px; border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(224,40,40,0.3); transition: all 0.15s;
     }
-    .btn-submit:hover { background: #aa0000; }
+    .btn-submit:hover { background: var(--red-dark); transform: translateY(-1px); }
 
-    .login-link { text-align: center; font-size: 0.82rem; color: #555; }
-    .login-link a { color: #cc0000; text-decoration: none; }
+    .login-link { text-align: center; font-size: 0.82rem; color: var(--text-4); }
+    .login-link a { color: var(--red); text-decoration: none; font-weight: 600; }
     .login-link a:hover { text-decoration: underline; }
 
-    footer {
-      background: #111; border-top: 1px solid #222; padding: 24px 20px; text-align: center;
-    }
-    footer p { color: #444; font-size: 0.75rem; }
-    footer a { color: #555; text-decoration: none; margin: 0 10px; }
-    footer a:hover { color: #888; }
+    footer { border-top: 1px solid var(--border); padding: 24px 20px; text-align: center; }
+    footer p { color: var(--text-4); font-size: 0.75rem; }
+    footer a { color: var(--text-3); text-decoration: none; margin: 0 10px; }
+    footer a:hover { color: var(--text-2); }
   </style>
 </head>
 <body>
@@ -89,7 +102,7 @@ function signupPage(error, prefill) {
   <div class="signup-wrap">
 
     <div class="signup-header">
-      <h1>Create Your Club</h1>
+      <h1>Create your club</h1>
       <p>Set up your free account and get your fixture page live in minutes.</p>
     </div>
 

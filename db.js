@@ -49,6 +49,8 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS tiktok_url VARCHAR(300),
       ADD COLUMN IF NOT EXISTS theme VARCHAR(10) DEFAULT 'dark';
 
+    ALTER TABLE teams ALTER COLUMN theme SET DEFAULT 'light';
+
     ALTER TABLE fixtures
       ADD COLUMN IF NOT EXISTS home_team VARCHAR(100),
       ADD COLUMN IF NOT EXISTS away_team VARCHAR(100),

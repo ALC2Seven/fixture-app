@@ -11,27 +11,29 @@ function signupPage(error, prefill) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0c111d; --surface: #141b2d; --surface-2: #1a2235;
-      --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.14);
-      --text: #f4f6fb; --text-2: #aeb6c8; --text-3: #7c8499; --text-4: #565e72;
+      --bg: #eef0f4; --surface: #ffffff; --surface-2: #f4f5f8;
+      --border: #e5e7eb; --border-2: #d1d5db;
+      --text: #111827; --text-2: #4b5563; --text-3: #6b7280; --text-4: #9ca3af;
       --red: #e02828; --red-dark: #b91c1c;
+      --navy: #0d1322; --navy-text: #aeb6c8;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: radial-gradient(ellipse 70% 50% at 50% -10%, rgba(224,40,40,0.14), transparent), var(--bg);
+      background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(224,40,40,0.08), transparent), var(--bg);
       color: var(--text); font-family: 'Inter', Arial, sans-serif;
       min-height: 100vh; display: flex; flex-direction: column; line-height: 1.5;
     }
 
     nav {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 36px; border-bottom: 1px solid var(--border);
+      padding: 16px 36px; background: var(--navy);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--text); text-decoration: none; font-style: italic; }
+    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: #fff; text-decoration: none; font-style: italic; }
     .nav-logo span { color: var(--red); }
     .nav-links { display: flex; align-items: center; gap: 22px; }
-    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a { color: var(--navy-text); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
+    .nav-links a:hover { color: #fff; }
 
     main {
       flex: 1; display: flex; align-items: flex-start; justify-content: center;
@@ -43,11 +45,11 @@ function signupPage(error, prefill) {
     .signup-header h1 { font-size: 1.9rem; font-weight: 900; letter-spacing: -0.8px; margin-bottom: 8px; }
     .signup-header p { color: var(--text-2); font-size: 0.92rem; }
 
-    .card { background: var(--surface); padding: 36px; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,0.35); }
+    .card { background: var(--surface); padding: 36px; border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 8px 30px rgba(16,24,40,0.08); }
 
     .error-box {
-      background: rgba(224,40,40,0.1); border: 1px solid rgba(224,40,40,0.35);
-      color: #fca5a5; padding: 12px 16px; font-size: 0.85rem;
+      background: #fef2f2; border: 1px solid #fecaca;
+      color: #b91c1c; padding: 12px 16px; font-size: 0.85rem;
       margin-bottom: 20px; border-radius: 10px;
     }
 

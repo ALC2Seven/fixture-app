@@ -24,7 +24,8 @@
       "Bash(node --check utils/fixtureImport.js)",
       "Bash(node scripts/patch-phase2.js)",
       "Bash(rm scripts/patch-phase2.js)",
-      "Bash(rmdir scripts *)"
+      "Bash(rmdir scripts *)",
+      "Bash(node --check views/fan/dashboard.js)"
     ]
   }
 }

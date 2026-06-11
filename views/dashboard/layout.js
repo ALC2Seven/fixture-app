@@ -1,5 +1,7 @@
 function layout(title, content, user) {
-  const isLight = user && user.team_theme === "light";
+  // Light is the default look; clubs that explicitly chose dark keep it.
+  // Logged-out pages (login, invites) and master accounts render light.
+  const isLight = !user || user.team_theme !== "dark";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>

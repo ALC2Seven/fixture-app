@@ -10,27 +10,28 @@ function fanLayout(title, content, fanUser) {
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0c111d; --surface: #141b2d; --surface-2: #1a2235;
-      --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.14);
-      --text: #f4f6fb; --text-2: #aeb6c8; --text-3: #7c8499; --text-4: #565e72;
+      --bg: #eef0f4; --surface: #ffffff; --surface-2: #f4f5f8;
+      --border: #e5e7eb; --border-2: #d1d5db;
+      --text: #111827; --text-2: #4b5563; --text-3: #6b7280; --text-4: #9ca3af;
       --red: #e02828; --red-dark: #b91c1c;
+      --navy: #0d1322; --navy-text: #aeb6c8;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: radial-gradient(ellipse 70% 40% at 50% -10%, rgba(224,40,40,0.12), transparent), var(--bg);
+      background: radial-gradient(ellipse 70% 30% at 50% -10%, rgba(224,40,40,0.07), transparent), var(--bg);
       color: var(--text); font-family: 'Inter', Arial, sans-serif; min-height: 100vh; line-height: 1.5;
     }
 
     nav {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 28px; border-bottom: 1px solid var(--border);
-      position: sticky; top: 0; z-index: 50; background: rgba(12,17,29,0.85); backdrop-filter: blur(10px);
+      padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      position: sticky; top: 0; z-index: 50; background: rgba(13,19,34,0.95); backdrop-filter: blur(10px);
     }
-    .nav-logo { font-size: 1rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--text); text-decoration: none; font-style: italic; }
+    .nav-logo { font-size: 1rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: #fff; text-decoration: none; font-style: italic; }
     .nav-logo span { color: var(--red); }
     .nav-links { display: flex; align-items: center; gap: 22px; }
-    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a { color: var(--navy-text); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
+    .nav-links a:hover { color: #fff; }
 
     .container { max-width: 700px; margin: 40px auto; padding: 0 20px; }
 
@@ -38,7 +39,7 @@ function fanLayout(title, content, fanUser) {
     .page-header h1 { font-size: 1.6rem; font-weight: 900; letter-spacing: -0.5px; }
     .page-header p { color: var(--text-3); font-size: 0.88rem; margin-top: 6px; }
 
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(16,24,40,0.08); }
     .card-title { font-size: 0.76rem; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--red); margin-bottom: 18px; }
 
     .btn {
@@ -62,9 +63,9 @@ function fanLayout(title, content, fanUser) {
     .form-group input:focus { border-color: var(--red); }
 
     .alert { padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; border-radius: 10px; border: 1px solid; }
-    .alert-success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #86efac; }
-    .alert-error   { background: rgba(224,40,40,0.1); border-color: rgba(224,40,40,0.35); color: #fca5a5; }
-    .alert-info    { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.3); color: #93c5fd; }
+    .alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .alert-error   { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    .alert-info    { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 
     footer { text-align: center; padding: 40px 20px; color: var(--text-4); font-size: 0.75rem; }
   </style>

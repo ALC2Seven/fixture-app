@@ -288,7 +288,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
   const googleCalUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
   const outlookCalUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(calendarUrl)}&name=${encodeURIComponent(team.name + " Fixtures")}`;
-  const theme = team.theme === "light" ? "light" : "dark";
+  // Light is the default; only an explicit dark choice renders dark
+  const theme = team.theme === "dark" ? "dark" : "light";
 
   const justSubscribed = flash && flash.msg === "subscribed";
   const alreadySubscribed = flash && flash.msg === "already";

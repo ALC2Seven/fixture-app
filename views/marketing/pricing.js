@@ -10,41 +10,44 @@ function pricingPage() {
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,800;0,900;1,900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0c111d; --bg-2: #0f1524;
-      --surface: #141b2d; --surface-2: #1a2235;
-      --border: rgba(255,255,255,0.08); --border-2: rgba(255,255,255,0.14);
-      --text: #f4f6fb; --text-2: #aeb6c8; --text-3: #7c8499; --text-4: #565e72;
+      --bg: #eef0f4; --bg-2: #f6f7f9;
+      --surface: #ffffff; --surface-2: #f4f5f8;
+      --border: #e5e7eb; --border-2: #d1d5db;
+      --text: #111827; --text-2: #4b5563; --text-3: #6b7280; --text-4: #9ca3af;
       --red: #e02828; --red-dark: #b91c1c;
+      --navy: #0d1322; --navy-2: #131a30; --navy-text: #aeb6c8;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--text); font-family: 'Inter', Arial, sans-serif; line-height: 1.5; }
 
     nav.topnav {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 36px; background: rgba(12,17,29,0.85); backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50;
+      padding: 16px 36px; background: rgba(13,19,34,0.95); backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(255,255,255,0.08); position: sticky; top: 0; z-index: 50;
     }
-    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--text); text-decoration: none; font-style: italic; }
+    .nav-logo { font-size: 1.05rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: #fff; text-decoration: none; font-style: italic; }
     .nav-logo span { color: var(--red); }
     .nav-links { display: flex; align-items: center; gap: 26px; }
-    .nav-links a { color: var(--text-2); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
-    .nav-links a:hover { color: var(--text); }
+    .nav-links a { color: var(--navy-text); text-decoration: none; font-size: 0.84rem; font-weight: 600; }
+    .nav-links a:hover { color: #fff; }
     .nav-cta { background: var(--red); color: #fff !important; padding: 10px 20px; border-radius: 8px; font-weight: 700 !important; }
     .nav-cta:hover { background: var(--red-dark) !important; }
 
     .hero {
       padding: 70px 24px 56px; text-align: center;
-      background: radial-gradient(ellipse 70% 60% at 50% -10%, rgba(224,40,40,0.16), transparent), var(--bg);
+      background: radial-gradient(ellipse 70% 60% at 50% -10%, rgba(224,40,40,0.20), transparent),
+                  linear-gradient(160deg, var(--navy-2), var(--navy));
+      border-bottom: 3px solid var(--red);
     }
     .hero-tag {
       display: inline-flex; align-items: center; gap: 8px;
-      background: var(--surface); border: 1px solid var(--border-2);
-      color: var(--text-2); font-size: 0.74rem; font-weight: 600;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.16);
+      color: var(--navy-text); font-size: 0.74rem; font-weight: 600;
       padding: 7px 16px; border-radius: 20px; margin-bottom: 24px;
     }
     .hero-tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
-    .hero h1 { font-size: clamp(1.9rem, 4vw, 3rem); font-weight: 900; letter-spacing: -1px; margin-bottom: 14px; }
-    .hero p { color: var(--text-2); font-size: 1.02rem; max-width: 480px; margin: 0 auto; line-height: 1.65; }
+    .hero h1 { font-size: clamp(1.9rem, 4vw, 3rem); font-weight: 900; letter-spacing: -1px; margin-bottom: 14px; color: #fff; }
+    .hero p { color: var(--navy-text); font-size: 1.02rem; max-width: 480px; margin: 0 auto; line-height: 1.65; }
 
     .section { max-width: 1020px; margin: 0 auto; padding: 56px 24px; }
 

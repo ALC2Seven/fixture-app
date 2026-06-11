@@ -12,14 +12,14 @@ function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
     <div style="padding:18px 20px;background:var(--surface-2);margin-bottom:10px;border:1px solid var(--border);border-radius:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#60a5fa;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
+          <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#2563eb;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
           <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <a href="/${s.team_slug}" class="btn btn-secondary btn-sm">View Fixtures</a>
           <form method="POST" action="/fan/unsubscribe" style="display:inline">
             <input type="hidden" name="teamId" value="${s.team_id}">
-            <button class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Unsubscribe</button>
+            <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca">Unsubscribe</button>
           </form>
         </div>
       </div>
@@ -54,7 +54,7 @@ function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
           <span style="font-weight:700;font-size:0.9rem">👤 ${m.name}</span>
           <form method="POST" action="/fan/family/remove" onsubmit="return confirm('Remove ${m.name.replace(/'/g, "\\'")}? Their availability responses will be cleared.')">
             <input type="hidden" name="memberId" value="${m.id}">
-            <button class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Remove</button>
+            <button class="btn btn-sm" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca">Remove</button>
           </form>
         </div>
       `).join("") : ""}

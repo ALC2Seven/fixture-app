@@ -115,22 +115,22 @@ function settingsPage(user, team, flash, squads) {
       <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">Applies to both your dashboard and your public fixture page.</p>
       <form method="POST" action="/dashboard/settings/theme">
         <div class="theme-options" style="margin-bottom:16px">
-          <label class="theme-opt ${(team.theme || 'dark') === 'dark' ? 'selected' : ''}" onclick="selectTheme('dark')">
-            <div class="theme-swatch" style="background:#0c111d;border-color:#2a3145"></div>
-            <div>
-              <div class="theme-label">Dark</div>
-              <div class="theme-sub">Default — deep navy</div>
-            </div>
-          </label>
-          <label class="theme-opt ${team.theme === 'light' ? 'selected' : ''}" onclick="selectTheme('light')">
+          <label class="theme-opt ${team.theme !== 'dark' ? 'selected' : ''}" onclick="selectTheme('light')">
             <div class="theme-swatch" style="background:#f0f2f5;border-color:#d1d5db"></div>
             <div>
               <div class="theme-label">Light</div>
-              <div class="theme-sub">Light background, crisp contrast</div>
+              <div class="theme-sub">Default — clean and crisp</div>
+            </div>
+          </label>
+          <label class="theme-opt ${team.theme === 'dark' ? 'selected' : ''}" onclick="selectTheme('dark')">
+            <div class="theme-swatch" style="background:#0c111d;border-color:#2a3145"></div>
+            <div>
+              <div class="theme-label">Dark</div>
+              <div class="theme-sub">Deep navy</div>
             </div>
           </label>
         </div>
-        <input type="hidden" name="theme" id="themeInput" value="${team.theme || 'dark'}">
+        <input type="hidden" name="theme" id="themeInput" value="${team.theme === 'dark' ? 'dark' : 'light'}">
         <button type="submit" class="btn btn-primary">Save Appearance</button>
       </form>
     </div>

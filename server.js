@@ -1898,13 +1898,13 @@ app.get("/rsvp", async (req, res) => {
   const when = fmtShort(event.start_time);
   const otherBtn = (s) => status === s ? "" : `
     <a href="/rsvp?${new URLSearchParams({ uid, email, status: s, token: rsvpToken(uid, email) })}"
-       style="display:inline-block;border:1px solid #444;color:#aaa;text-decoration:none;font-size:0.78rem;
+       style="display:inline-block;border:1px solid #d1d5db;color:#6b7280;text-decoration:none;font-size:0.78rem;
               font-weight:700;padding:8px 16px;border-radius:16px;margin:0 4px">${labels[s]}</a>`;
 
   res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"><title>RSVP — ${event.team_name}</title></head>
-    <body style="background:#0c111d;color:#f4f6fb;font-family:'Inter',Arial,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
-      <div style="background:#141b2d;border:1px solid rgba(255,255,255,0.1);border-radius:16px;max-width:440px;width:100%;padding:36px 30px;text-align:center;border-top:3px solid ${colors[status]}">
+    <body style="background:#eef0f4;color:#111827;font-family:'Inter',Arial,sans-serif;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+      <div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 8px 30px rgba(16,24,40,0.08);max-width:440px;width:100%;padding:36px 30px;text-align:center;border-top:3px solid ${colors[status]}">
         <div style="font-size:2.4rem;margin-bottom:10px">${status === "going" ? "✅" : status === "maybe" ? "🤔" : "👋"}</div>
         <h2 style="margin:0 0 6px;font-size:1.1rem;text-transform:uppercase;letter-spacing:1px">Response saved</h2>
         <p style="color:#999;font-size:0.9rem;margin:0 0 18px">You're marked as

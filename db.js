@@ -147,6 +147,24 @@ async function initDb() {
     );
   `);
 
+  // Squads: one club (teams row) can run many squads (U10s, First Team, ...).
+  // fixtures.squad_id NULL = club-wide event; subscribers.squad_id NULL = follows whole club.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS squads (
+      id         SERIAL PRIMARY KEY,
+      team_id    INTEGER REFERENCES teams(id) ON DELETE CASCADE,
+      name       VARCHAR(100) NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(team_id, name)
+    );
+  `);
+  await pool.query(`
+    ALTER TABLE fixtures
+      ADD COLUMN IF NOT EXISTS squad_id INTEGER REFERENCES squads(id) ON DELETE SET NULL;
+    ALTER TABLE subscribers
+      ADD COLUMN IF NOT EXISTS squad_id INTEGER REFERENCES squads(id) ON DELETE SET NULL;
+  `);
+
   // Family members (children/players) a guardian fan account responds for
   await pool.query(`
     CREATE TABLE IF NOT EXISTS family_members (

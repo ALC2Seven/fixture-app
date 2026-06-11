@@ -1,6 +1,7 @@
 const { layout } = require("./layout");
 
-function settingsPage(user, team, flash) {
+function settingsPage(user, team, flash, squads) {
+  squads = squads || [];
   const isOwner = ["owner", "master"].includes(user.role);
   const content = `
     ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
@@ -48,6 +49,34 @@ function settingsPage(user, team, flash) {
           If unchecked, only new home fixtures will auto-fill with this venue.
         </p>
         <button type="submit" class="btn btn-primary">Save Home Ground</button>
+      </form>
+    </div>
+
+    <!-- Squads -->
+    <div class="card">
+      <div class="card-title">Squads</div>
+      <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">
+        Run more than one team? Add squads (e.g. U10s, U12s, First Team) — fixtures can be assigned
+        to a squad, supporters can follow just their squad, and each squad gets its own calendar feed.
+      </p>
+      ${squads.length ? squads.map(sq => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--row-hover);border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+          <span><strong>${sq.name}</strong>
+            <span style="color:var(--text-4);font-size:0.75rem;margin-left:8px">${sq.fixture_count} fixture${sq.fixture_count === 1 ? "" : "s"}</span>
+          </span>
+          <form method="POST" action="/dashboard/settings/squads/delete"
+                onsubmit="return confirm('Remove ${sq.name}? Its fixtures become club-wide and its followers will follow the whole club.')">
+            <input type="hidden" name="squadId" value="${sq.id}">
+            <button class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Remove</button>
+          </form>
+        </div>
+      `).join("") : ""}
+      <form method="POST" action="/dashboard/settings/squads/add" style="display:flex;gap:10px;align-items:flex-end;margin-top:${squads.length ? "14px" : "0"}">
+        <div class="form-group" style="flex:1">
+          <label>Squad Name</label>
+          <input type="text" name="name" required maxlength="100" placeholder="e.g. U12s">
+        </div>
+        <button type="submit" class="btn btn-primary">Add Squad</button>
       </form>
     </div>
     ` : ""}

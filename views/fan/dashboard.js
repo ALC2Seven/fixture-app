@@ -3,15 +3,16 @@ const { fanLayout } = require("./layout");
 function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
   familyMembers = familyMembers || [];
   const rows = subscriptions.length ? subscriptions.map(s => {
-    const icsUrl     = `https://${s.calendar_host}/calendar/${s.team_slug}.ics`;
-    const webcalUrl  = `webcal://${s.calendar_host}/calendar/${s.team_slug}.ics`;
+    const squadSuffix = s.squad_id ? `?squad=${s.squad_id}` : "";
+    const icsUrl     = `https://${s.calendar_host}/calendar/${s.team_slug}.ics${squadSuffix}`;
+    const webcalUrl  = `webcal://${s.calendar_host}/calendar/${s.team_slug}.ics${squadSuffix}`;
     const googleUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
-    const outlookUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(icsUrl)}&name=${encodeURIComponent(s.team_name + " Fixtures")}`;
+    const outlookUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(icsUrl)}&name=${encodeURIComponent(s.team_name + (s.squad_name ? " " + s.squad_name : "") + " Fixtures")}`;
     return `
     <div style="padding:18px 20px;background:var(--surface-2);margin-bottom:10px;border:1px solid var(--border);border-radius:12px">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
         <div>
-          <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}</div>
+          <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#60a5fa;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
           <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">

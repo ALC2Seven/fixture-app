@@ -101,12 +101,15 @@ function fixtureRow(fixture, isNext, theme, ctx) {
     ? `<span class="pill pill-cancelled">Cancelled</span>`
     : isNext ? `<span class="pill pill-next">Next Fixture</span>` : "";
 
+  const squadPill = fixture.squad_name
+    ? `<span class="pill pill-squad">${fixture.squad_name}</span>` : "";
+
   if (isEvent) {
     return `
-    <div class="fx fx-event ${cancelled ? "fx-cancelled" : ""}" data-type="${key}"
+    <div class="fx fx-event ${cancelled ? "fx-cancelled" : ""}" data-type="${key}" data-squad="${fixture.squad_id || 0}"
          style="background:${cfg.rowBg}">
       <div class="fx-centre">
-        <div class="fx-pills">${statusPill}${badgeHtml}</div>
+        <div class="fx-pills">${statusPill}${squadPill}${badgeHtml}</div>
         <div class="fx-event-title">${fixture.summary}</div>
         <div class="fx-time">${d.time}</div>
         <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
@@ -117,11 +120,11 @@ function fixtureRow(fixture, isNext, theme, ctx) {
   }
 
   return `
-    <div class="fx ${isNext ? "fx-next" : ""} ${cancelled ? "fx-cancelled" : ""}" data-type="${key}"
+    <div class="fx ${isNext ? "fx-next" : ""} ${cancelled ? "fx-cancelled" : ""}" data-type="${key}" data-squad="${fixture.squad_id || 0}"
          style="background:${cfg.rowBg}">
       <div class="fx-team fx-team-home">${fixture.home_team || fixture.summary}</div>
       <div class="fx-centre">
-        <div class="fx-pills">${statusPill}${homeAwayPill}${badgeHtml}</div>
+        <div class="fx-pills">${statusPill}${homeAwayPill}${squadPill}${badgeHtml}</div>
         <div class="fx-time">${d.time}</div>
         <div class="fx-venue">${fixture.location || "Venue TBC"}</div>
         ${fixture.description ? `<div class="fx-comp">${fixture.description}</div>` : ""}
@@ -190,7 +193,23 @@ function buildTabs(fixtures, theme) {
   `;
 }
 
-function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers) {
+// Squad filter pills — shown when the club runs more than one squad
+function buildSquadTabs(fixtures, squads) {
+  if (!squads || !squads.length) return "";
+  const usedSquadIds = new Set(fixtures.map(f => f.squad_id).filter(Boolean));
+  const present = squads.filter(s => usedSquadIds.has(s.id));
+  if (!present.length) return "";
+
+  return `
+    <div class="tab-bar squad-bar" id="squad-bar">
+      <button class="tab-btn squad-btn active" data-squad="all" onclick="filterSquad('all')">All Squads</button>
+      ${present.map(s => `<button class="tab-btn squad-btn" data-squad="${s.id}" onclick="filterSquad('${s.id}')">${s.name}</button>`).join("")}
+    </div>
+  `;
+}
+
+function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads) {
+  squads = squads || [];
   const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {}, familyMembers: familyMembers || [] };
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
@@ -357,6 +376,9 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     }
     .pill-home { background: #cc0000; color: #fff; }
     .pill-away { background: var(--border); color: var(--text-3); }
+    .pill-squad { background: #14203a; color: #60a5fa; }
+    body.light .pill-squad { background: #dbeafe; color: #1e40af; }
+    .squad-bar { margin-top: 8px; }
     .pill-next { background: #cc0000; color: #fff; }
     .pill-cancelled { background: var(--text-4); color: var(--surface); }
     .fx-time { font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; }
@@ -512,7 +534,12 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
           return `<button onclick="openCalModal()" class="btn btn-primary">📅 Add to Calendar</button>
                   <a href="/my-teams" class="btn btn-outline">Manage Subscriptions</a>`;
         } else if (fanUser) {
-          return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline">
+          return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
+                    ${squads.length ? `
+                    <select name="squadId" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:0.8rem;font-family:inherit">
+                      <option value="">Whole club</option>
+                      ${squads.map(s => `<option value="${s.id}">${s.name} only</option>`).join("")}
+                    </select>` : ""}
                     <button type="submit" class="btn btn-primary">📅 Subscribe for Updates</button>
                   </form>`;
         } else {
@@ -559,6 +586,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
+    ${buildSquadTabs(upcoming, squads)}
     ${buildTabs(upcoming, theme)}
     ${past.length > 0 ? `
     <button class="past-toggle" onclick="togglePast(this)">
@@ -653,15 +681,17 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       arrow.textContent = open ? '▶' : '▼';
     }
 
-    // Tab filtering — hide fixture rows, then collapse empty date cards and month blocks
-    function filterTab(type) {
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === type);
-      });
+    // Two filter dimensions: event type and squad. A squad filter also keeps
+    // club-wide rows (data-squad="0") visible — parents still see shared events.
+    let activeType = 'all';
+    let activeSquad = 'all';
 
+    function applyFilters() {
       const scope = document.getElementById('upcoming-rows');
       scope.querySelectorAll('.fx').forEach(row => {
-        row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
+        const typeOk  = activeType === 'all' || row.dataset.type === activeType;
+        const squadOk = activeSquad === 'all' || row.dataset.squad === activeSquad || row.dataset.squad === '0';
+        row.style.display = (typeOk && squadOk) ? '' : 'none';
       });
       scope.querySelectorAll('.date-group').forEach(group => {
         const visible = [...group.querySelectorAll('.fx')].some(r => r.style.display !== 'none');
@@ -671,6 +701,22 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
         const visible = [...block.querySelectorAll('.date-group')].some(g => g.style.display !== 'none');
         block.style.display = visible ? '' : 'none';
       });
+    }
+
+    function filterTab(type) {
+      activeType = type;
+      document.querySelectorAll('#tab-bar .tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tab === type);
+      });
+      applyFilters();
+    }
+
+    function filterSquad(squad) {
+      activeSquad = String(squad);
+      document.querySelectorAll('#squad-bar .squad-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.squad === activeSquad);
+      });
+      applyFilters();
     }
 
     // Close modal on backdrop click

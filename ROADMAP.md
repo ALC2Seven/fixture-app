@@ -53,7 +53,14 @@ The weekly loop a volunteer coach touches must be faster than WhatsApp + spreads
             (settings+members = owner; messages+subscribers = owner+manager;
             fixtures/events/availability = all). Invite flow with emailed +
             copyable signed links (/dashboard/members), last-owner protection.
-      - [ ] Multi-squad clubs (one club, many teams) with per-squad delegation.
+      - [x] Multi-squad clubs: squads table (Settings → Squads, owner);
+            fixtures/events/imports assign to a squad (or club-wide);
+            public page squad filter pills + squad badges; supporters
+            subscribe to a single squad or whole club; fixture emails and
+            reminders respect the squad; per-squad calendar feeds
+            (?squad=ID) with squad-prefixed summaries; My Teams shows
+            followed squad with squad-scoped calendar links.
+      - [ ] Per-squad role delegation (coach assigned to specific squads).
       - [ ] Welfare/safeguarding officer role (with guardian work below).
 - [~] Guardian-linked accounts:
       - [x] Family members on fan accounts (My Teams → My Family, up to 10);

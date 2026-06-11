@@ -87,13 +87,19 @@ async function requireTeamKey(req, res, next) {
 
 const fmt = iso => new Date(iso).toUTCString().replace(" GMT", " UTC");
 
-async function getSubscriberEmails(teamId) {
-  const { rows } = await pool.query("SELECT email FROM subscribers WHERE team_id = $1", [teamId]);
+// squadId optional: whole-club followers always included; squad followers
+// only get emails for their squad (and club-wide events).
+async function getSubscriberEmails(teamId, squadId) {
+  const { rows } = squadId
+    ? await pool.query(
+        "SELECT email FROM subscribers WHERE team_id = $1 AND (squad_id IS NULL OR squad_id = $2)",
+        [teamId, squadId])
+    : await pool.query("SELECT email FROM subscribers WHERE team_id = $1", [teamId]);
   return rows.map(r => r.email);
 }
 
 async function sendCancellationEmails(team, fixture, cancelType) {
-  const emails = await getSubscriberEmails(team.id);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
   if (!emails.length) return 0;
   const shown = cancelType === "shown";
   await resend.emails.send({
@@ -113,7 +119,7 @@ async function sendCancellationEmails(team, fixture, cancelType) {
 }
 
 async function sendVenueChangeEmails(team, fixture, oldVenue) {
-  const emails = await getSubscriberEmails(team.id);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
   if (!emails.length) return 0;
   await resend.emails.send({
     from: "Fixture Updates <onboarding@resend.dev>",
@@ -143,13 +149,8 @@ async function sendVenueChangeEmails(team, fixture, oldVenue) {
 }
 
 async function sendRescheduleEmails(team, fixture, oldStart) {
-  const { rows: subs } = await pool.query(
-    "SELECT email FROM subscribers WHERE team_id = $1",
-    [team.id]
-  );
-  if (!subs.length) return 0;
-
-  const emails = subs.map(s => s.email);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
+  if (!emails.length) return 0;
 
   await resend.emails.send({
     from: "Fixture Updates <onboarding@resend.dev>",
@@ -200,7 +201,7 @@ function rsvpButtonsHtml(uid, email) {
 
 // Sends a reminder for one event to every subscriber (individually, so RSVP links are personal)
 async function sendEventReminder(team, event) {
-  const emails = await getSubscriberEmails(team.id);
+  const emails = await getSubscriberEmails(team.id, event.squad_id);
   if (!emails.length) return 0;
 
   const kindLabel = (event.event_kind && event.event_kind !== "fixture")
@@ -343,23 +344,41 @@ app.get("/calendar/:slug.ics", async (req, res) => {
   if (!teams.length) return res.status(404).send("Team not found");
 
   const team = teams[0];
-  const { rows: fixtures } = await pool.query(
-    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC",
-    [team.id]
-  );
+
+  // Optional per-squad feed: /calendar/slug.ics?squad=ID
+  // includes that squad's fixtures plus club-wide (no-squad) events
+  const squadId = req.query.squad ? parseInt(req.query.squad, 10) : null;
+  let squadName = null;
+  if (squadId) {
+    const { rows: sq } = await pool.query(
+      "SELECT name FROM squads WHERE id = $1 AND team_id = $2", [squadId, team.id]);
+    if (sq.length) squadName = sq[0].name;
+  }
+
+  const { rows: fixtures } = (squadId && squadName)
+    ? await pool.query(
+        `SELECT f.*, sq.name AS squad_name FROM fixtures f
+         LEFT JOIN squads sq ON sq.id = f.squad_id
+         WHERE f.team_id = $1 AND (f.squad_id = $2 OR f.squad_id IS NULL)
+         ORDER BY f.start_time ASC`, [team.id, squadId])
+    : await pool.query(
+        `SELECT f.*, sq.name AS squad_name FROM fixtures f
+         LEFT JOIN squads sq ON sq.id = f.squad_id
+         WHERE f.team_id = $1 ORDER BY f.start_time ASC`, [team.id]);
 
   const calendar = ical({
-    name: `${team.name} Fixtures`,
-    description: `Live fixture schedule for ${team.name}`,
+    name: squadName ? `${team.name} — ${squadName}` : `${team.name} Fixtures`,
+    description: `Live fixture schedule for ${team.name}${squadName ? ` (${squadName})` : ""}`,
     prodId: { company: "FixtureApp", product: "Sports Calendar", language: "EN" },
     ttl: 1800,
   });
 
   for (const fixture of fixtures) {
     const cancelled = fixture.status === "cancelled_hidden" || fixture.status === "cancelled_shown";
+    const baseSummary = fixture.squad_name ? `${fixture.squad_name}: ${fixture.summary}` : fixture.summary;
     const event = calendar.createEvent({
       sequence: fixture.sequence,
-      summary: cancelled ? `CANCELLED: ${fixture.summary}` : fixture.summary,
+      summary: cancelled ? `CANCELLED: ${baseSummary}` : baseSummary,
       description: fixture.description,
       location: fixture.location,
       start: new Date(fixture.start_time),
@@ -610,7 +629,9 @@ app.get("/dashboard", requireLogin, async (req, res) => {
   if (!team) return res.redirect("/dashboard/master");
 
   const { rows: fixtures } = await pool.query(
-    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC", [team.id]
+    `SELECT f.*, sq.name AS squad_name FROM fixtures f
+     LEFT JOIN squads sq ON sq.id = f.squad_id
+     WHERE f.team_id = $1 ORDER BY f.start_time ASC`, [team.id]
   );
   const { rows: subscribers } = await pool.query(
     "SELECT * FROM subscribers WHERE team_id = $1", [team.id]
@@ -628,9 +649,12 @@ app.get("/dashboard", requireLogin, async (req, res) => {
     if (availability[r.uid][r.status] !== undefined) availability[r.uid][r.status] = r.n;
   }
 
+  const { rows: squads } = await pool.query(
+    "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]);
+
   const flash = req.session.flash;
   delete req.session.flash;
-  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue, availability));
+  res.send(homePage(req.user, team, fixtures, subscribers, flash, team.home_venue, availability, squads));
 });
 
 // Availability detail for one event — who responded what
@@ -706,6 +730,9 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
     return res.redirect("/dashboard");
   }
 
+  const { rows: importSquads } = await pool.query(
+    "SELECT id, name FROM squads WHERE team_id = $1", [team.id]);
+
   // Insert all valid fixtures, skipping duplicates
   let imported = 0;
   let skippedDupes = 0;
@@ -724,11 +751,18 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
       continue;
     }
 
+    // Match squad name (case-insensitive) against this club's squads
+    let squadId = null;
+    if (f.squadName) {
+      const match = importSquads.find(s => s.name.toLowerCase() === f.squadName.toLowerCase());
+      if (match) squadId = match.id;
+    }
+
     const uid = `${team.slug}-${Date.now()}-${imported}@calendar.fixture-app.com`;
     await pool.query(
-      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [team.id, uid, f.summary, f.location, f.description, f.start, f.end || f.start, f.homeTeam, f.awayTeam, f.isHome, f.fixtureType || "league"]
+      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type, squad_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [team.id, uid, f.summary, f.location, f.description, f.start, f.end || f.start, f.homeTeam, f.awayTeam, f.isHome, f.fixtureType || "league", squadId]
     );
     imported++;
   }
@@ -743,19 +777,27 @@ app.post("/dashboard/fixtures/upload", requireLogin, upload.single("file"), asyn
   res.redirect("/dashboard");
 });
 
+// Resolve a posted squadId to a valid id for this team, or null
+async function resolveSquadId(teamId, squadId) {
+  if (!squadId) return null;
+  const { rows } = await pool.query("SELECT id FROM squads WHERE id = $1 AND team_id = $2", [squadId, teamId]);
+  return rows.length ? rows[0].id : null;
+}
+
 // Add fixture via dashboard
 app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
-  const { homeTeam, awayTeam, isHome, start, end, location, description, fixtureType } = req.body;
+  const { homeTeam, awayTeam, isHome, start, end, location, description, fixtureType, squadId } = req.body;
   const teamId = req.user.team_id;
   const team = (await pool.query("SELECT * FROM teams WHERE id = $1", [teamId])).rows[0];
 
   const uid = `${team.slug}-${Date.now()}@calendar.fixture-app.com`;
   const summary = `${homeTeam} vs ${awayTeam}`;
+  const sqId = await resolveSquadId(teamId, squadId);
 
   await pool.query(
-    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-    [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true", fixtureType || "league"]
+    `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, home_team, away_team, is_home, fixture_type, squad_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [teamId, uid, summary, location, description, start, end, homeTeam, awayTeam, isHome === "true", fixtureType || "league", sqId]
   );
 
   req.session.flash = { type: "success", msg: `Fixture added: ${summary}` };
@@ -764,7 +806,7 @@ app.post("/dashboard/fixtures/add", requireLogin, async (req, res) => {
 
 // Add a non-fixture event (training, meeting, social, volunteer duty), optionally repeating weekly
 app.post("/dashboard/events/add", requireLogin, async (req, res) => {
-  const { kind, title, date, startTime, endTime, location, description, repeatWeekly, repeatUntil } = req.body;
+  const { kind, title, date, startTime, endTime, location, description, repeatWeekly, repeatUntil, squadId } = req.body;
   const validKinds = ["training", "meeting", "social", "duty"];
   const eventKind = validKinds.includes(kind) ? kind : "training";
 
@@ -789,14 +831,15 @@ app.post("/dashboard/events/add", requireLogin, async (req, res) => {
   if (!dates.length) dates.push(date);
 
   const recurrenceGroup = dates.length > 1 ? `${team.slug}-rec-${Date.now()}` : null;
+  const sqId = await resolveSquadId(teamId, squadId);
 
   for (let i = 0; i < dates.length; i++) {
     const uid = `${team.slug}-${Date.now()}-${i}@calendar.fixture-app.com`;
     await pool.query(
-      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, event_kind, recurrence_group)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      `INSERT INTO fixtures (team_id, uid, summary, location, description, start_time, end_time, event_kind, recurrence_group, squad_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
       [teamId, uid, title.trim(), location || null, description || null,
-       `${dates[i]}T${startTime}:00Z`, `${dates[i]}T${endTime}:00Z`, eventKind, recurrenceGroup]
+       `${dates[i]}T${startTime}:00Z`, `${dates[i]}T${endTime}:00Z`, eventKind, recurrenceGroup, sqId]
     );
   }
 
@@ -921,7 +964,7 @@ app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
 
 // Edit fixture (opponent, home/away, venue, description)
 app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
-  const { uid, opponent, isHome, location, description, fixtureType } = req.body;
+  const { uid, opponent, isHome, location, description, fixtureType, squadId } = req.body;
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const teamName = teams[0].name;
 
@@ -937,12 +980,14 @@ app.post("/dashboard/fixtures/edit", requireLogin, async (req, res) => {
   const newVenue = location || null;
   const venueChanged = (oldVenue || "") !== (newVenue || "");
 
+  const sqId = await resolveSquadId(req.user.team_id, squadId);
+
   await pool.query(
     `UPDATE fixtures
      SET summary=$1, home_team=$2, away_team=$3, is_home=$4,
-         location=$5, description=$6, fixture_type=$7, sequence=sequence+1, updated_at=NOW()
-     WHERE uid=$8 AND team_id=$9`,
-    [summary, homeTeam, awayTeam, home, newVenue, description || null, fixtureType || "league", uid, req.user.team_id]
+         location=$5, description=$6, fixture_type=$7, squad_id=$8, sequence=sequence+1, updated_at=NOW()
+     WHERE uid=$9 AND team_id=$10`,
+    [summary, homeTeam, awayTeam, home, newVenue, description || null, fixtureType || "league", sqId, uid, req.user.team_id]
   );
 
   let emailsSent = 0;
@@ -1239,8 +1284,33 @@ const { settingsPage } = require("./views/dashboard/settings");
 
 app.get("/dashboard/settings", requireLogin, async (req, res) => {
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
+  const { rows: squads } = await pool.query(
+    `SELECT s.*, (SELECT COUNT(*)::int FROM fixtures f WHERE f.squad_id = s.id) AS fixture_count
+     FROM squads s WHERE s.team_id = $1 ORDER BY s.name`, [req.user.team_id]);
   const flash = req.session.flash; delete req.session.flash;
-  res.send(settingsPage(req.user, teams[0], flash));
+  res.send(settingsPage(req.user, teams[0], flash, squads));
+});
+
+// Squads CRUD (owner)
+app.post("/dashboard/settings/squads/add", requireLogin, requireRole("owner"), async (req, res) => {
+  const name = (req.body.name || "").trim();
+  if (!name) {
+    req.session.flash = { type: "error", msg: "Squad name is required." };
+    return res.redirect("/dashboard/settings");
+  }
+  try {
+    await pool.query("INSERT INTO squads (team_id, name) VALUES ($1, $2)", [req.user.team_id, name]);
+    req.session.flash = { type: "success", msg: `Squad "${name}" added.` };
+  } catch (e) {
+    req.session.flash = { type: "error", msg: e.code === "23505" ? "That squad already exists." : "Could not add squad." };
+  }
+  res.redirect("/dashboard/settings");
+});
+
+app.post("/dashboard/settings/squads/delete", requireLogin, requireRole("owner"), async (req, res) => {
+  await pool.query("DELETE FROM squads WHERE id = $1 AND team_id = $2", [req.body.squadId, req.user.team_id]);
+  req.session.flash = { type: "success", msg: "Squad removed — its fixtures are now club-wide and its followers follow the whole club." };
+  res.redirect("/dashboard/settings");
 });
 
 // Update club name
@@ -1327,6 +1397,8 @@ app.post("/dashboard/subscribers/remove", requireLogin, requireRole("owner", "ma
 app.get("/dashboard/feed", requireLogin, async (req, res) => {
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const team = teams[0];
+  const { rows: squads } = await pool.query(
+    "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]);
   const feedUrl = `https://${req.headers.host}/calendar/${team.slug}.ics`;
   const webcalUrl = feedUrl.replace("https://", "webcal://");
   const googleUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
@@ -1348,6 +1420,19 @@ app.get("/dashboard/feed", requireLogin, async (req, res) => {
         <a href="${outlookUrl}" target="_blank" class="btn btn-secondary">📧 Outlook</a>
       </div>
     </div>
+    ${squads.length ? `
+    <div class="card">
+      <div class="card-title">Per-Squad Feeds</div>
+      <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:14px">Each squad has its own feed — that squad's fixtures plus club-wide events only. Perfect for parents who just want their child's squad.</p>
+      ${squads.map(sq => `
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--border)">
+          <strong style="min-width:120px">${sq.name}</strong>
+          <a href="${webcalUrl}?squad=${sq.id}" class="btn btn-secondary btn-sm">🍎 Apple</a>
+          <a href="https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl + "?squad=" + sq.id)}" target="_blank" class="btn btn-secondary btn-sm">📆 Google</a>
+          <code style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-4);font-size:0.72rem;word-break:break-all;flex:1;min-width:200px">${feedUrl}?squad=${sq.id}</code>
+        </div>
+      `).join("")}
+    </div>` : ""}
     <div class="card">
       <div class="card-title">Raw Subscription URL</div>
       <p style="color:var(--text-3);font-size:0.85rem;margin-bottom:10px">For any other calendar app that accepts an ICS URL.</p>
@@ -1428,9 +1513,10 @@ app.get("/fan/logout", (req, res) => {
 app.get("/my-teams", async (req, res) => {
   if (!req.fanUser) return res.redirect("/fan/login");
   const { rows } = await pool.query(`
-    SELECT s.*, t.name AS team_name, t.slug AS team_slug, t.tier
+    SELECT s.*, t.name AS team_name, t.slug AS team_slug, t.tier, sq.name AS squad_name
     FROM subscribers s
     JOIN teams t ON t.id = s.team_id
+    LEFT JOIN squads sq ON sq.id = s.squad_id
     WHERE s.fan_user_id = $1
     ORDER BY s.created_at DESC
   `, [req.fanUser.id]);
@@ -1500,11 +1586,12 @@ app.post("/:slug/subscribe", async (req, res) => {
   }
 
   const fanEmail = req.fanUser.email;
+  const sqId = await resolveSquadId(team.id, req.body.squadId);
   let flash;
   try {
     await pool.query(
-      "INSERT INTO subscribers (team_id, email, fan_user_id) VALUES ($1, $2, $3)",
-      [team.id, fanEmail, req.fanUser.id]
+      "INSERT INTO subscribers (team_id, email, fan_user_id, squad_id) VALUES ($1, $2, $3, $4)",
+      [team.id, fanEmail, req.fanUser.id, sqId]
     );
     flash = { type: "success", msg: `subscribed` };
   } catch (e) {
@@ -1619,8 +1706,13 @@ app.get("/:slug", async (req, res) => {
 
   const team = teams[0];
   const { rows: fixtures } = await pool.query(
-    "SELECT * FROM fixtures WHERE team_id = $1 ORDER BY start_time ASC",
+    `SELECT f.*, sq.name AS squad_name FROM fixtures f
+     LEFT JOIN squads sq ON sq.id = f.squad_id
+     WHERE f.team_id = $1 ORDER BY f.start_time ASC`,
     [team.id]
+  );
+  const { rows: squads } = await pool.query(
+    "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]
   );
 
   const host = req.headers.host;
@@ -1667,7 +1759,7 @@ app.get("/:slug", async (req, res) => {
   delete req.session.teamFlash;
 
   res.setHeader("Content-Type", "text/html");
-  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers));
+  res.send(teamPage(team, fixtures, calendarUrl, flash, req.fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads));
 });
 
 // --- Start ---

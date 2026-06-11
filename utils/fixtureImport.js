@@ -10,6 +10,7 @@ const COLUMNS = [
   { header: "Venue",                 key: "venue",       width: 30 },
   { header: "Type",                  key: "type",        width: 14 },
   { header: "Competition / Description", key: "competition", width: 30 },
+  { header: "Squad",                 key: "squad",       width: 16 },
 ];
 
 // Valid fixture types
@@ -39,6 +40,7 @@ async function generateTemplate(teamName) {
     venue:       "Riverside Stadium, Manchester",
     type:        "league",
     competition: "Premier League — Matchday 1",
+    squad:       "",
   });
 
   // Style example row
@@ -55,6 +57,7 @@ async function generateTemplate(teamName) {
     venue:       "← Optional",
     type:        "← league / cup / tournament / festival",
     competition: "← Optional description e.g. FA Cup Round 1",
+    squad:       "← Optional — must match a squad name in your settings",
   });
   const noteRow = sheet.getRow(3);
   noteRow.font = { italic: true, color: { argb: "FFAAAAAA" } };
@@ -188,6 +191,7 @@ async function parseFixtures(buffer, mimetype, teamName) {
     const venue       = String(row.getCell(6).value || "").trim();
     const typeRaw     = String(row.getCell(7).value || "").trim().toLowerCase();
     const competition = String(row.getCell(8).value || "").trim();
+    const squadName   = String(row.getCell(9).value || "").trim();
     const fixtureType = VALID_TYPES.includes(typeRaw) ? typeRaw : "league";
 
     // Skip blank rows
@@ -233,6 +237,7 @@ async function parseFixtures(buffer, mimetype, teamName) {
       end:          endtime ? endISO : null,
       location:     venue || null,
       fixtureType,
+      squadName:    squadName || null,
       description:  competition || null,
     });
   });

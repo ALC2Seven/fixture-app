@@ -20,7 +20,8 @@
       "Bash(node --check server.js)",
       "Bash(node --check db.js)",
       "Bash(node --check views/dashboard/home.js)",
-      "Bash(node --check views/marketing/home.js)"
+      "Bash(node --check views/marketing/home.js)",
+      "Bash(node --check utils/fixtureImport.js)"
     ]
   }
 }

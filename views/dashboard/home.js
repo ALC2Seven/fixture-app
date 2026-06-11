@@ -7,8 +7,14 @@ function fmtDate(d) {
   });
 }
 
-function homePage(user, team, fixtures, subscribers, flash, homeVenue, availability) {
+function homePage(user, team, fixtures, subscribers, flash, homeVenue, availability, squads) {
   availability = availability || {};
+  squads = squads || [];
+  const hasSquads = squads.length > 0;
+  const squadOptions = (selectedId) => `
+    <option value="">Club-wide</option>
+    ${squads.map(s => `<option value="${s.id}" ${String(selectedId) === String(s.id) ? "selected" : ""}>${s.name}</option>`).join("")}
+  `;
   const now = new Date();
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
@@ -61,6 +67,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       <td style="color:var(--red);font-weight:900">VS</td>
       <td><strong>${f.away_team || ""}</strong></td>
       `}
+      ${hasSquads ? `<td style="color:#60a5fa;font-size:0.78rem;font-weight:700">${f.squad_name || '<span style="color:var(--text-5)">Club</span>'}</td>` : ""}
       <td style="color:#888">${f.location || "TBC"}</td>
       <td>${typeBadge}</td>
       <td>${isEvent ? "" : (isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>')}</td>
@@ -70,7 +77,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
           <button onclick="openReschedule('${f.uid}','${f.summary.replace(/'/g,"\\'")}','${f.start_time}','${f.end_time}')"
             class="btn btn-secondary btn-sm">Reschedule</button>
           ${!isEvent ? `
-          <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}','${fType}')"
+          <button onclick="openEdit('${f.uid}','${opponentName.replace(/'/g,"\\'")}','${isActuallyHome}','${(f.location||'').replace(/'/g,"\\'")}','${(f.description||'').replace(/'/g,"\\'")}','${fType}','${f.squad_id || ""}')"
             class="btn btn-secondary btn-sm">Edit</button>` : ""}
           <button onclick="openCancel('${f.uid}','${f.summary.replace(/'/g,"\\'")}')"
             class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Cancel</button>
@@ -182,6 +189,11 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
               <option value="festival">Festival</option>
             </select>
           </div>
+          ${hasSquads ? `
+          <div class="form-group">
+            <label>Squad</label>
+            <select name="squadId">${squadOptions(null)}</select>
+          </div>` : ""}
           <div class="form-group" style="flex:2">
             <label>Competition / Description</label>
             <input type="text" name="description" placeholder="e.g. Premier League — Matchday 3">
@@ -209,6 +221,11 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             <label>Title</label>
             <input type="text" name="title" required placeholder="e.g. Tuesday Training">
           </div>
+          ${hasSquads ? `
+          <div class="form-group">
+            <label>Squad</label>
+            <select name="squadId">${squadOptions(null)}</select>
+          </div>` : ""}
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -260,6 +277,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             <th>Home</th>
             <th></th>
             <th>Away</th>
+            ${hasSquads ? "<th>Squad</th>" : ""}
             <th>Venue</th>
             <th>Type</th>
             <th>H/A</th>
@@ -406,13 +424,15 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       }
 
       // Combined edit modal
-      function openEdit(uid, opponent, isHome, location, description, fixtureType) {
+      function openEdit(uid, opponent, isHome, location, description, fixtureType, squadId) {
         document.getElementById('edit-uid').value = uid;
         document.getElementById('edit-opponent').value = opponent;
         document.getElementById('edit-ishome').value = String(isHome) === 'true' ? 'true' : 'false';
         document.getElementById('edit-location').value = location;
         document.getElementById('edit-description').value = description;
         document.getElementById('edit-type').value = fixtureType || 'league';
+        const squadSel = document.getElementById('edit-squad');
+        if (squadSel) squadSel.value = squadId || '';
         document.getElementById('edit-modal').style.display = 'flex';
       }
       function closeEdit() {
@@ -459,6 +479,11 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
                 <option value="festival">Festival</option>
               </select>
             </div>
+            ${hasSquads ? `
+            <div class="form-group" style="margin-bottom:14px">
+              <label>Squad</label>
+              <select name="squadId" id="edit-squad">${squadOptions(null)}</select>
+            </div>` : ""}
             <div class="form-group" style="flex:2;margin-bottom:14px">
               <label>Competition / Description</label>
               <input type="text" name="description" id="edit-description" placeholder="e.g. Premier League — Matchday 3">

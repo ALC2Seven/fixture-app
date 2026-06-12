@@ -91,8 +91,11 @@ function fixtureRow(fixture, isNext, theme, ctx) {
   const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
   const cfg = themeConfig[key] || themeConfig.league;
 
+  // Outline badge: use the vivid accent for both text and border, no fill.
+  // (dark theme's accent is badge.color; light theme's is the deeper badge.bg)
+  const badgeAccent = theme === "light" ? cfg.badge?.bg : cfg.badge?.color;
   const badgeHtml = cfg.badge
-    ? `<span class="pill" style="background:${cfg.badge.bg};color:${cfg.badge.color}">${cfg.badge.text}</span>`
+    ? `<span class="pill" style="color:${badgeAccent}">${cfg.badge.text}</span>`
     : "";
   const homeAwayPill = isEvent ? "" : (fixture.is_home
     ? `<span class="pill pill-home">Home</span>`
@@ -201,9 +204,11 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
   }).join("");
 }
 
-// Simplified tab groups: All / League / Other (cups, tournaments, festivals) /
-// Events (training etc.) — plus a Stats tab when there are played matches.
+// Simplified tab groups. All = every actual game (no events); League / Other
+// (cups, tournaments, festivals) split the games; Events holds every event kind
+// on its own. Plus a Stats tab when there are played matches.
 const TAB_GROUPS = {
+  all:    ["league", "cup", "tournament", "festival"],
   league: ["league"],
   other:  ["cup", "tournament", "festival"],
   events: ["training", "meeting", "social", "duty"],
@@ -211,23 +216,23 @@ const TAB_GROUPS = {
 
 function buildTabs(fixtures, hasStats) {
   const counts = {
+    all:    fixtures.filter(f => TAB_GROUPS.all.includes(typeKey(f))).length,
     league: fixtures.filter(f => TAB_GROUPS.league.includes(typeKey(f))).length,
     other:  fixtures.filter(f => TAB_GROUPS.other.includes(typeKey(f))).length,
     events: fixtures.filter(f => TAB_GROUPS.events.includes(typeKey(f))).length,
   };
-  const presentGroups = Object.keys(counts).filter(g => counts[g] > 0);
+  // Sub-groups worth showing as their own tab
+  const presentGroups = ["league", "other", "events"].filter(g => counts[g] > 0);
   if (presentGroups.length <= 1 && !hasStats) return "";
 
   const labels = { league: "League", other: "Other", events: "Events" };
-  const groupButtons = presentGroups.length > 1
-    ? presentGroups.map(g =>
-        `<button class="tab-btn" data-tab="${g}" onclick="filterTab('${g}')">${labels[g]} <span class="tab-count">${counts[g]}</span></button>`
-      ).join("")
-    : "";
+  const groupButtons = presentGroups.map(g =>
+    `<button class="tab-btn" data-tab="${g}" onclick="filterTab('${g}')">${labels[g]} <span class="tab-count">${counts[g]}</span></button>`
+  ).join("");
 
   return `
     <div class="tab-bar" id="tab-bar">
-      <button class="tab-btn active" data-tab="all" onclick="filterTab('all')">All <span class="tab-count">${fixtures.length}</span></button>
+      <button class="tab-btn active" data-tab="all" onclick="filterTab('all')">All <span class="tab-count">${counts.all}</span></button>
       ${groupButtons}
       ${hasStats ? `<button class="tab-btn tab-stats" data-tab="stats" onclick="filterTab('stats')">📊 Stats</button>` : ""}
     </div>
@@ -361,7 +366,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   const now = new Date();
   const visible  = fixtures.filter(f => f.status !== "cancelled_hidden");
   const upcoming = visible.filter(f => new Date(f.start_time) >= now);
-  const past     = visible.filter(f => new Date(f.start_time) <  now).reverse();
+  // Oldest → newest so past games flow chronologically into the upcoming list
+  const past     = visible.filter(f => new Date(f.start_time) <  now);
   const nextIndex = upcoming.length > 0 ? 0 : -1;
 
   const isPaid = team.tier === "standard" || team.tier === "pro";
@@ -529,22 +535,24 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
     .fx-centre { text-align: center; min-width: 190px; }
     .fx-pills { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 6px; }
+    /* Outline pills — no fill, just a coloured border + matching text */
     .pill {
       display: inline-block; padding: 2px 9px; font-size: 0.58rem;
       font-weight: 900; letter-spacing: 1px; text-transform: uppercase;
-      border-radius: 10px;
+      border-radius: 10px; background: transparent;
+      border: 1px solid currentColor; color: var(--text-3);
     }
-    .pill-home { background: #cc0000; color: #fff; }
-    .pill-away { background: var(--border); color: var(--text-3); }
-    .pill-squad { background: #14203a; color: #60a5fa; }
-    body.light .pill-squad { background: #dbeafe; color: #1e40af; }
+    .pill-home { color: #cc0000; }
+    .pill-away { color: var(--text-3); }
+    .pill-squad { color: #60a5fa; }
+    body.light .pill-squad { color: #1e40af; }
     .squad-bar { margin-top: 8px; }
-    .pill-w { background: #143620; color: #4ade80; }
-    .pill-d { background: #2a2410; color: #f0b429; }
-    .pill-l { background: #2a1010; color: #f87171; }
-    body.light .pill-w { background: #dcfce7; color: #166534; }
-    body.light .pill-d { background: #fef3c7; color: #92400e; }
-    body.light .pill-l { background: #fee2e2; color: #b91c1c; }
+    .pill-w { color: #4ade80; }
+    .pill-d { color: #f0b429; }
+    .pill-l { color: #f87171; }
+    body.light .pill-w { color: #166534; }
+    body.light .pill-d { color: #92400e; }
+    body.light .pill-l { color: #b91c1c; }
 
     /* Played match score */
     .fx-ft { font-size: 0.62rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-4); margin-bottom: 2px; }
@@ -598,8 +606,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .form-w { background: #1a7a2e; }
     .form-d { background: #b8860b; }
     .form-l { background: #aa2222; }
-    .pill-next { background: #cc0000; color: #fff; }
-    .pill-cancelled { background: var(--text-4); color: var(--surface); }
+    .pill-next { color: #cc0000; }
+    .pill-cancelled { color: var(--text-4); }
     .fx-time { font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; }
     .fx-venue { font-size: 0.75rem; color: var(--text-3); margin-top: 3px; }
     .fx-comp { font-size: 0.68rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
@@ -902,8 +910,10 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       arrow.textContent = open ? '▶' : '▼';
     }
 
-    // Tab groups map to underlying row types; 'stats' swaps the whole view
+    // Tab groups map to underlying row types; 'stats' swaps the whole view.
+    // 'all' is every game type but no events — events live only under Events.
     const TAB_GROUPS = {
+      all:    ['league', 'cup', 'tournament', 'festival'],
       league: ['league'],
       other:  ['cup', 'tournament', 'festival'],
       events: ['training', 'meeting', 'social', 'duty'],
@@ -911,9 +921,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     let activeGroup = 'all';
     let activeSquad = 'all';
 
-    function applyFilters() {
-      const scope = document.getElementById('upcoming-rows');
-      const types = TAB_GROUPS[activeGroup] || null;
+    function filterScope(scope, types) {
+      if (!scope) return;
       scope.querySelectorAll('.fx').forEach(row => {
         const typeOk  = !types || types.includes(row.dataset.type);
         const squadOk = activeSquad === 'all' || row.dataset.squad === activeSquad || row.dataset.squad === '0';
@@ -927,6 +936,23 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
         const visible = [...block.querySelectorAll('.date-group')].some(g => g.style.display !== 'none');
         block.style.display = visible ? '' : 'none';
       });
+    }
+
+    function applyFilters() {
+      // Only type-filter when a tab bar exists, so single-category pages
+      // (e.g. events-only) keep showing every row.
+      const hasTabs = !!document.getElementById('tab-bar');
+      const types = hasTabs ? (TAB_GROUPS[activeGroup] || null) : null;
+      filterScope(document.getElementById('upcoming-rows'), types);
+      filterScope(document.getElementById('past-fixtures'), types);
+
+      // Hide the Past toggle entirely when nothing past matches the filter
+      const pastWrap = document.getElementById('past-fixtures');
+      const pastToggle = document.querySelector('.past-toggle');
+      if (pastToggle && pastWrap) {
+        const anyPast = [...pastWrap.querySelectorAll('.fx')].some(r => r.style.display !== 'none');
+        pastToggle.style.display = anyPast ? '' : 'none';
+      }
     }
 
     function filterTab(group) {
@@ -954,6 +980,9 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       });
       applyFilters();
     }
+
+    // Apply the default 'All' filter on load so events start hidden when tabs exist
+    if (document.getElementById('tab-bar')) applyFilters();
 
     // Close modal on backdrop click
     const modal = document.getElementById('subscribe-modal');

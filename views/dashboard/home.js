@@ -21,17 +21,20 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
 
+  // Outline badges — coloured border + matching text, no fill
+  const outlineBadge = (color, text) =>
+    `<span class="badge" style="color:${color};border:1px solid ${color};background:transparent">${text}</span>`;
   const TYPE_BADGES = {
-    league:     '<span class="badge" style="background:#1a1a2a;color:#5c9aff">League</span>',
-    cup:        '<span class="badge" style="background:#2a2000;color:#f0b429">Cup</span>',
-    tournament: '<span class="badge" style="background:#001a2a;color:#29b6f0">Tournament</span>',
-    festival:   '<span class="badge" style="background:#0a1a0a;color:#66bb6a">Festival</span>',
+    league:     outlineBadge('#5c9aff', 'League'),
+    cup:        outlineBadge('#f0b429', 'Cup'),
+    tournament: outlineBadge('#29b6f0', 'Tournament'),
+    festival:   outlineBadge('#66bb6a', 'Festival'),
   };
   const KIND_BADGES = {
-    training: '<span class="badge" style="background:#1f1530;color:#b794f6">Training</span>',
-    meeting:  '<span class="badge" style="background:#1a2530;color:#7ab8d9">Meeting</span>',
-    social:   '<span class="badge" style="background:#2a1520;color:#f687b3">Social</span>',
-    duty:     '<span class="badge" style="background:#0a2025;color:#4fd1c5">Duty</span>',
+    training: outlineBadge('#b794f6', 'Training'),
+    meeting:  outlineBadge('#7ab8d9', 'Meeting'),
+    social:   outlineBadge('#f687b3', 'Social'),
+    duty:     outlineBadge('#4fd1c5', 'Duty'),
   };
 
   const now2 = new Date();
@@ -47,14 +50,14 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       const clubScore = f.is_home ? f.home_score : f.away_score;
       const oppScore  = f.is_home ? f.away_score : f.home_score;
       const outcome = clubScore > oppScore ? "W" : clubScore < oppScore ? "L" : "D";
-      const oc = { W: "background:#143620;color:#4ade80", L: "background:#2a1010;color:#f87171", D: "background:#2a2410;color:#f0b429" }[outcome];
-      resultBadge = `<span class="badge" style="${oc}">${outcome} ${f.home_score}–${f.away_score}</span>`;
+      const oc = { W: "#4ade80", L: "#f87171", D: "#f0b429" }[outcome];
+      resultBadge = outlineBadge(oc, `${outcome} ${f.home_score}–${f.away_score}`);
     }
 
     const statusBadge = f.status === "cancelled_shown"
-      ? '<span class="badge" style="background:#2a1010;color:#ff6666">CANCELLED</span>'
+      ? outlineBadge('#ff6666', 'CANCELLED')
       : f.status === "cancelled_hidden"
-      ? '<span class="badge" style="background:#222;color:#555">HIDDEN</span>'
+      ? outlineBadge('#888', 'HIDDEN')
       : resultBadge;
     const typeBadge = isEvent
       ? (KIND_BADGES[f.event_kind] || KIND_BADGES.training)
@@ -74,6 +77,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
 
     return `
     <tr style="${rowStyle}">
+      <td style="text-align:center">${canAct(f) ? `<input type="checkbox" class="bulk-cb" value="${f.uid}" onchange="updateBulkBar()" style="width:auto;cursor:pointer;accent-color:var(--red)">` : ""}</td>
       <td>${fmtDate(f.start_time)} ${statusBadge}</td>
       ${isEvent ? `
       <td colspan="3"><strong>${f.summary}</strong></td>
@@ -85,7 +89,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       ${hasSquads ? `<td style="color:#60a5fa;font-size:0.78rem;font-weight:700">${f.squad_name || '<span style="color:var(--text-5)">Club</span>'}</td>` : ""}
       <td style="color:#888">${f.location || "TBC"}</td>
       <td>${typeBadge}</td>
-      <td>${isEvent ? "" : (isActuallyHome ? '<span class="badge badge-standard">Home</span>' : '<span class="badge badge-free">Away</span>')}</td>
+      <td>${isEvent ? "" : (isActuallyHome ? outlineBadge('#4ade80', 'Home') : outlineBadge('var(--text-3)', 'Away'))}</td>
       <td>${availCell}</td>
       <td style="display:flex;gap:6px;flex-wrap:wrap">
         ${!canAct(f) ? '<span style="color:var(--text-5);font-size:0.75rem">View only</span>' : !cancelled ? `
@@ -294,10 +298,19 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
     <!-- Fixtures Table -->
     <div class="card">
       <div class="card-title">All Fixtures & Events (${fixtures.length})</div>
+      <div id="bulk-bar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;background:var(--row-hover);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;margin-bottom:14px">
+        <span id="bulk-count" style="font-weight:700;font-size:0.85rem">0 selected</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-left:auto">
+          <button type="button" onclick="bulkAction('cancel')" class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Cancel selected</button>
+          <button type="button" onclick="bulkAction('delete')" class="btn btn-sm" style="background:var(--red);color:#fff">Delete selected</button>
+          <button type="button" onclick="clearBulk()" class="btn btn-secondary btn-sm">Clear</button>
+        </div>
+      </div>
       ${fixtures.length ? `
       <table>
         <thead>
           <tr>
+            <th style="width:28px;text-align:center"><input type="checkbox" id="bulk-all" onchange="toggleAllBulk(this)" title="Select all" style="width:auto;cursor:pointer;accent-color:var(--red)"></th>
             <th>Date & Time</th>
             <th>Home</th>
             <th></th>
@@ -490,6 +503,53 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       function closeCancel() {
         document.getElementById('cancel-modal').style.display = 'none';
       }
+
+      // --- Bulk select / cancel / delete ---
+      function selectedUids() {
+        return [...document.querySelectorAll('.bulk-cb:checked')].map(c => c.value);
+      }
+      function updateBulkBar() {
+        const n = selectedUids().length;
+        const bar = document.getElementById('bulk-bar');
+        bar.style.display = n ? 'flex' : 'none';
+        document.getElementById('bulk-count').textContent = n + ' selected';
+        const all = document.getElementById('bulk-all');
+        const total = document.querySelectorAll('.bulk-cb').length;
+        if (all) {
+          all.checked = n > 0 && n === total;
+          all.indeterminate = n > 0 && n < total;
+        }
+      }
+      function toggleAllBulk(cb) {
+        document.querySelectorAll('.bulk-cb').forEach(c => { c.checked = cb.checked; });
+        updateBulkBar();
+      }
+      function clearBulk() {
+        document.querySelectorAll('.bulk-cb').forEach(c => { c.checked = false; });
+        updateBulkBar();
+      }
+      function bulkAction(action) {
+        const uids = selectedUids();
+        if (!uids.length) return;
+        const noun = uids.length + ' item' + (uids.length > 1 ? 's' : '');
+        const msg = action === 'delete'
+          ? 'Permanently delete ' + noun + '? This cannot be undone.'
+          : 'Cancel ' + noun + '? They will be shown as cancelled and subscribers notified.';
+        if (!confirm(msg)) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/dashboard/fixtures/bulk';
+        const a = document.createElement('input');
+        a.type = 'hidden'; a.name = 'action'; a.value = action;
+        form.appendChild(a);
+        uids.forEach(u => {
+          const i = document.createElement('input');
+          i.type = 'hidden'; i.name = 'uids'; i.value = u;
+          form.appendChild(i);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      }
     </script>
 
     <!-- Edit Fixture Modal -->
@@ -602,7 +662,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
               <input type="radio" name="cancelType" value="hidden" style="margin-top:3px;width:auto">
               <div>
                 <div style="font-weight:700;font-size:0.85rem">Remove Completely</div>
-                <div style="color:var(--text-4);font-size:0.78rem;margin-top:3px">Hidden from public page. Removed from subscribed calendars automatically.</div>
+                <div style="color:var(--text-4);font-size:0.78rem;margin-top:3px">Deleted permanently and removed from subscribed calendars. This can't be undone.</div>
               </div>
             </label>
           </div>

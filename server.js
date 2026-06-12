@@ -982,29 +982,73 @@ app.post("/dashboard/fixtures/switch-home-away", requireLogin, async (req, res) 
 
 // Cancel fixture via dashboard
 app.post("/dashboard/fixtures/cancel", requireLogin, async (req, res) => {
-  const { uid, cancelType } = req.body; // cancelType: 'hidden' or 'shown'
+  const { uid, cancelType } = req.body; // cancelType: 'hidden' (remove completely) or 'shown'
   const teamId = req.user.team_id;
-  const status = cancelType === "shown" ? "cancelled_shown" : "cancelled_hidden";
 
   const { rows: preCancel } = await pool.query("SELECT squad_id FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, teamId]);
   if (preCancel.length && !(await canManageSquad(req.user, preCancel[0].squad_id))) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
 
-  const { rows } = await pool.query(
-    `UPDATE fixtures SET status=$1, sequence=sequence+1, updated_at=NOW()
-     WHERE uid=$2 AND team_id=$3 RETURNING *`,
-    [status, uid, teamId]
-  );
-
-  if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
-
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id=$1", [teamId]);
-  const emailsSent = await sendCancellationEmails(teams[0], rows[0], cancelType);
 
-  const msg = cancelType === "shown"
-    ? `Fixture marked as cancelled.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`
-    : `Fixture cancelled and hidden.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}`;
-  audit(teamId, req.user, "fixture_cancelled", `${rows[0].summary} (${cancelType})`);
-  req.session.flash = { type: "success", msg };
+  if (cancelType === "shown") {
+    // Keep the fixture on the page, marked as cancelled
+    const { rows } = await pool.query(
+      `UPDATE fixtures SET status='cancelled_shown', sequence=sequence+1, updated_at=NOW()
+       WHERE uid=$1 AND team_id=$2 RETURNING *`,
+      [uid, teamId]
+    );
+    if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+    const emailsSent = await sendCancellationEmails(teams[0], rows[0], "shown");
+    audit(teamId, req.user, "fixture_cancelled", `${rows[0].summary} (shown)`);
+    req.session.flash = { type: "success", msg: `Fixture marked as cancelled.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}` };
+    return res.redirect("/dashboard");
+  }
+
+  // Remove completely — notify subscribers, then delete the record outright
+  const { rows } = await pool.query("SELECT * FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, teamId]);
+  if (!rows.length) { req.session.flash = { type: "error", msg: "Fixture not found" }; return res.redirect("/dashboard"); }
+  const emailsSent = await sendCancellationEmails(teams[0], rows[0], "hidden");
+  await pool.query("DELETE FROM fixtures WHERE uid=$1 AND team_id=$2", [uid, teamId]);
+  audit(teamId, req.user, "fixture_deleted", rows[0].summary);
+  req.session.flash = { type: "success", msg: `Fixture removed.${emailsSent ? ` ${emailsSent} subscriber(s) notified.` : ""}` };
+  res.redirect("/dashboard");
+});
+
+// Bulk cancel / delete from the dashboard fixtures table
+app.post("/dashboard/fixtures/bulk", requireLogin, async (req, res) => {
+  const teamId = req.user.team_id;
+  const action = req.body.action === "delete" ? "delete" : "cancel";
+  let uids = req.body.uids || [];
+  if (!Array.isArray(uids)) uids = [uids];
+  uids = uids.filter(Boolean);
+  if (!uids.length) { req.session.flash = { type: "error", msg: "Nothing selected." }; return res.redirect("/dashboard"); }
+
+  // Load the selected rows and keep only those the user may manage
+  const { rows } = await pool.query(
+    "SELECT * FROM fixtures WHERE team_id=$1 AND uid = ANY($2)", [teamId, uids]);
+  const allowed = [];
+  for (const f of rows) {
+    if (await canManageSquad(req.user, f.squad_id)) allowed.push(f);
+  }
+  if (!allowed.length) { squadDeniedFlash(req); return res.redirect("/dashboard"); }
+  const allowedUids = allowed.map(f => f.uid);
+
+  if (action === "delete") {
+    await pool.query("DELETE FROM fixtures WHERE team_id=$1 AND uid = ANY($2)", [teamId, allowedUids]);
+    audit(teamId, req.user, "fixtures_bulk_deleted", `${allowedUids.length} item(s)`);
+    req.session.flash = { type: "success", msg: `${allowedUids.length} item(s) removed.` };
+    return res.redirect("/dashboard");
+  }
+
+  // Bulk cancel — mark as cancelled (kept on page) and notify subscribers
+  await pool.query(
+    `UPDATE fixtures SET status='cancelled_shown', sequence=sequence+1, updated_at=NOW()
+     WHERE team_id=$1 AND uid = ANY($2)`, [teamId, allowedUids]);
+  const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id=$1", [teamId]);
+  let emailsSent = 0;
+  for (const f of allowed) emailsSent += await sendCancellationEmails(teams[0], f, "shown");
+  audit(teamId, req.user, "fixtures_bulk_cancelled", `${allowedUids.length} item(s)`);
+  req.session.flash = { type: "success", msg: `${allowedUids.length} item(s) marked as cancelled.${emailsSent ? ` ${emailsSent} notification(s) sent.` : ""}` };
   res.redirect("/dashboard");
 });
 

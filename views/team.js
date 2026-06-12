@@ -201,25 +201,35 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
   }).join("");
 }
 
-// Tab bar — only when more than one type present
-function buildTabs(fixtures, theme) {
-  const types = [...new Set(fixtures.map(typeKey))];
-  if (types.length <= 1) return "";
+// Simplified tab groups: All / League / Other (cups, tournaments, festivals) /
+// Events (training etc.) — plus a Stats tab when there are played matches.
+const TAB_GROUPS = {
+  league: ["league"],
+  other:  ["cup", "tournament", "festival"],
+  events: ["training", "meeting", "social", "duty"],
+};
 
-  const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
-  const tabOrder = ["league", "cup", "tournament", "festival", "training", "meeting", "social", "duty"];
-  const presentTypes = tabOrder.filter(t => types.includes(t));
+function buildTabs(fixtures, hasStats) {
+  const counts = {
+    league: fixtures.filter(f => TAB_GROUPS.league.includes(typeKey(f))).length,
+    other:  fixtures.filter(f => TAB_GROUPS.other.includes(typeKey(f))).length,
+    events: fixtures.filter(f => TAB_GROUPS.events.includes(typeKey(f))).length,
+  };
+  const presentGroups = Object.keys(counts).filter(g => counts[g] > 0);
+  if (presentGroups.length <= 1 && !hasStats) return "";
 
-  const buttons = presentTypes.map(t => {
-    const cfg = themeConfig[t] || themeConfig.league;
-    const count = fixtures.filter(f => typeKey(f) === t).length;
-    return `<button class="tab-btn" data-tab="${t}" onclick="filterTab('${t}')">${cfg.label} <span class="tab-count">${count}</span></button>`;
-  });
+  const labels = { league: "League", other: "Other", events: "Events" };
+  const groupButtons = presentGroups.length > 1
+    ? presentGroups.map(g =>
+        `<button class="tab-btn" data-tab="${g}" onclick="filterTab('${g}')">${labels[g]} <span class="tab-count">${counts[g]}</span></button>`
+      ).join("")
+    : "";
 
   return `
     <div class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-tab="all" onclick="filterTab('all')">All <span class="tab-count">${fixtures.length}</span></button>
-      ${buttons.join("")}
+      ${groupButtons}
+      ${hasStats ? `<button class="tab-btn tab-stats" data-tab="stats" onclick="filterTab('stats')">📊 Stats</button>` : ""}
     </div>
   `;
 }
@@ -239,19 +249,20 @@ function buildSquadTabs(fixtures, squads) {
   `;
 }
 
-// Season record strip + last-5 form guide, computed from played matches
-function buildSeasonRecord(fixtures) {
-  const played = fixtures
+// Played-match extraction shared by the stats panel
+function getPlayedMatches(fixtures) {
+  return fixtures
     .filter(f =>
       (!f.event_kind || f.event_kind === "fixture") &&
       !String(f.status || "").startsWith("cancelled") &&
       f.home_score !== null && f.home_score !== undefined)
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
-  if (!played.length) return "";
+}
 
+function recordOf(matches) {
   let w = 0, d = 0, l = 0, gf = 0, ga = 0;
   const formArr = [];
-  for (const f of played) {
+  for (const f of matches) {
     const cs = f.is_home ? f.home_score : f.away_score;
     const os = f.is_home ? f.away_score : f.home_score;
     gf += cs; ga += os;
@@ -259,21 +270,87 @@ function buildSeasonRecord(fixtures) {
     if (o === "W") w++; else if (o === "L") l++; else d++;
     formArr.push(o);
   }
-  const form = formArr.slice(-5);
+  return { p: matches.length, w, d, l, gf, ga, form: formArr.slice(-5) };
+}
+
+// W/D/L proportion bar
+function wdlBar(r) {
+  if (!r.p) return `<div class="bar"><span style="flex:1;background:var(--border)"></span></div>`;
+  return `
+    <div class="bar">
+      ${r.w ? `<span style="flex:${r.w};background:#1a7a2e"></span>` : ""}
+      ${r.d ? `<span style="flex:${r.d};background:#b8860b"></span>` : ""}
+      ${r.l ? `<span style="flex:${r.l};background:#aa2222"></span>` : ""}
+    </div>`;
+}
+
+// Stats panel — shown via the Stats tab
+function buildStatsPanel(fixtures) {
+  const played = getPlayedMatches(fixtures);
+  if (!played.length) return "";
+
+  const all  = recordOf(played);
+  const home = recordOf(played.filter(f => f.is_home));
+  const away = recordOf(played.filter(f => !f.is_home));
+  const goalMax = Math.max(all.gf, all.ga, 1);
+
+  const recordRow = (label, r) => `
+    <div class="stat-row">
+      <div class="stat-row-head">
+        <span class="stat-row-label">${label}</span>
+        <span class="stat-row-detail">P ${r.p} · <em class="c-w">W ${r.w}</em> · <em class="c-d">D ${r.d}</em> · <em class="c-l">L ${r.l}</em></span>
+      </div>
+      ${wdlBar(r)}
+    </div>`;
 
   return `
-    <div class="season-record">
-      <div class="sr-stats">
-        <span class="sr-item">Played <strong>${played.length}</strong></span>
-        <span class="sr-item sr-w">Won <strong>${w}</strong></span>
-        <span class="sr-item sr-d">Drawn <strong>${d}</strong></span>
-        <span class="sr-item sr-l">Lost <strong>${l}</strong></span>
-        <span class="sr-item">For <strong>${gf}</strong></span>
-        <span class="sr-item">Against <strong>${ga}</strong></span>
-      </div>
-      <div class="sr-form">
-        <span class="sr-form-label">Form</span>
-        ${form.map(o => `<span class="form-dot form-${o.toLowerCase()}">${o}</span>`).join("")}
+    <div id="stats-panel" style="display:none">
+      <div class="stats-grid">
+
+        <div class="stat-card">
+          <div class="stat-card-title">Season Record</div>
+          <div class="big-record">
+            <div class="big-stat"><strong>${all.p}</strong><span>Played</span></div>
+            <div class="big-stat c-w"><strong>${all.w}</strong><span>Won</span></div>
+            <div class="big-stat c-d"><strong>${all.d}</strong><span>Drawn</span></div>
+            <div class="big-stat c-l"><strong>${all.l}</strong><span>Lost</span></div>
+          </div>
+          <div class="sr-form" style="justify-content:center;margin-top:14px">
+            <span class="sr-form-label">Form</span>
+            ${all.form.map(o => `<span class="form-dot form-${o.toLowerCase()}">${o}</span>`).join("")}
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-title">Home vs Away</div>
+          ${recordRow("Home", home)}
+          ${recordRow("Away", away)}
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-card-title">Goals</div>
+          <div class="stat-row">
+            <div class="stat-row-head">
+              <span class="stat-row-label">Scored</span>
+              <span class="stat-row-detail c-w">${all.gf}</span>
+            </div>
+            <div class="bar"><span style="flex:${all.gf || 0.001};background:#1a7a2e"></span><span style="flex:${goalMax - all.gf || 0.001};background:var(--border)"></span></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-row-head">
+              <span class="stat-row-label">Conceded</span>
+              <span class="stat-row-detail c-l">${all.ga}</span>
+            </div>
+            <div class="bar"><span style="flex:${all.ga || 0.001};background:#aa2222"></span><span style="flex:${goalMax - all.ga || 0.001};background:var(--border)"></span></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-row-head">
+              <span class="stat-row-label">Goal difference</span>
+              <span class="stat-row-detail" style="font-weight:900;color:${all.gf - all.ga > 0 ? "#1a7a2e" : all.gf - all.ga < 0 ? "#aa2222" : "var(--text-3)"}">${all.gf - all.ga > 0 ? "+" : ""}${all.gf - all.ga}</span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>`;
 }
@@ -483,18 +560,34 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .fx-report[open] summary::after { content: " ▴"; }
     .fx-report p { font-size: 0.8rem; color: var(--text-2); line-height: 1.6; margin-top: 8px; text-align: left; }
 
-    /* Season record */
-    .season-record {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-      box-shadow: var(--shadow); padding: 12px 20px; margin-top: 16px;
+    /* Stats panel */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px; margin-top: 18px;
     }
-    .sr-stats { display: flex; gap: 16px; flex-wrap: wrap; }
-    .sr-item { font-size: 0.72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
-    .sr-item strong { color: var(--text); font-size: 0.95rem; margin-left: 3px; }
-    .sr-w strong { color: #4ade80; }
-    .sr-d strong { color: #f0b429; }
-    .sr-l strong { color: #f87171; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      box-shadow: var(--shadow); padding: 20px 22px;
+    }
+    .stat-card-title {
+      font-size: 0.68rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
+      color: #cc0000; font-style: italic; margin-bottom: 16px; text-align: center;
+    }
+    .big-record { display: flex; justify-content: space-around; gap: 8px; }
+    .big-stat { text-align: center; }
+    .big-stat strong { display: block; font-size: 1.7rem; font-weight: 900; letter-spacing: -0.5px; }
+    .big-stat span { font-size: 0.62rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; }
+    .c-w, .big-stat.c-w strong { color: #1a7a2e; font-style: normal; }
+    .c-d, .big-stat.c-d strong { color: #b8860b; font-style: normal; }
+    .c-l, .big-stat.c-l strong { color: #aa2222; font-style: normal; }
+    .stat-row { margin-bottom: 14px; }
+    .stat-row:last-child { margin-bottom: 0; }
+    .stat-row-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .stat-row-label { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-2); }
+    .stat-row-detail { font-size: 0.74rem; color: var(--text-3); font-weight: 700; }
+    .bar { display: flex; height: 10px; border-radius: 6px; overflow: hidden; gap: 1px; }
+    .bar span { display: block; }
+    .tab-stats { font-weight: 800; }
     .sr-form { display: flex; gap: 5px; align-items: center; }
     .sr-form-label { font-size: 0.68rem; color: var(--text-4); text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; }
     .form-dot {
@@ -711,19 +804,21 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
-    ${buildSeasonRecord(visible)}
-    ${buildSquadTabs(upcoming, squads)}
-    ${buildTabs(upcoming, theme)}
-    ${past.length > 0 ? `
-    <button class="past-toggle" onclick="togglePast(this)">
-      <span id="past-arrow">▶</span> Past Fixtures (${past.length})
-    </button>
-    <div id="past-fixtures">
-      ${fixtureCards(past, -1, theme, ctx)}
-    </div>` : ""}
-    <div id="upcoming-rows">
-      ${fixtureCards(upcoming, nextIndex, theme, ctx)}
+    ${buildTabs(upcoming, getPlayedMatches(visible).length > 0)}
+    <div id="fixtures-view">
+      ${buildSquadTabs(upcoming, squads)}
+      ${past.length > 0 ? `
+      <button class="past-toggle" onclick="togglePast(this)">
+        <span id="past-arrow">▶</span> Past Fixtures (${past.length})
+      </button>
+      <div id="past-fixtures">
+        ${fixtureCards(past, -1, theme, ctx)}
+      </div>` : ""}
+      <div id="upcoming-rows">
+        ${fixtureCards(upcoming, nextIndex, theme, ctx)}
+      </div>
     </div>
+    ${buildStatsPanel(visible)}
   </div>
 
   <footer>POWERED BY FIXTURE APP</footer>
@@ -807,15 +902,20 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       arrow.textContent = open ? '▶' : '▼';
     }
 
-    // Two filter dimensions: event type and squad. A squad filter also keeps
-    // club-wide rows (data-squad="0") visible — parents still see shared events.
-    let activeType = 'all';
+    // Tab groups map to underlying row types; 'stats' swaps the whole view
+    const TAB_GROUPS = {
+      league: ['league'],
+      other:  ['cup', 'tournament', 'festival'],
+      events: ['training', 'meeting', 'social', 'duty'],
+    };
+    let activeGroup = 'all';
     let activeSquad = 'all';
 
     function applyFilters() {
       const scope = document.getElementById('upcoming-rows');
+      const types = TAB_GROUPS[activeGroup] || null;
       scope.querySelectorAll('.fx').forEach(row => {
-        const typeOk  = activeType === 'all' || row.dataset.type === activeType;
+        const typeOk  = !types || types.includes(row.dataset.type);
         const squadOk = activeSquad === 'all' || row.dataset.squad === activeSquad || row.dataset.squad === '0';
         row.style.display = (typeOk && squadOk) ? '' : 'none';
       });
@@ -829,11 +929,21 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       });
     }
 
-    function filterTab(type) {
-      activeType = type;
+    function filterTab(group) {
       document.querySelectorAll('#tab-bar .tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.tab === type);
+        btn.classList.toggle('active', btn.dataset.tab === group);
       });
+
+      const fixturesView = document.getElementById('fixtures-view');
+      const statsPanel = document.getElementById('stats-panel');
+      if (group === 'stats') {
+        fixturesView.style.display = 'none';
+        if (statsPanel) statsPanel.style.display = 'block';
+        return;
+      }
+      fixturesView.style.display = '';
+      if (statsPanel) statsPanel.style.display = 'none';
+      activeGroup = group;
       applyFilters();
     }
 

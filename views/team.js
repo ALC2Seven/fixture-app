@@ -188,6 +188,7 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
   return months.map(month => {
     const cards = month.days.map(day => {
       const hasNext = markNextIndex >= 0 && day.items.some(({ index }) => index === markNextIndex);
+      const hasCancelled = day.items.some(({ fixture }) => fixture.status === "cancelled_shown");
       const rows = day.items
         .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme, ctx))
         .join("");
@@ -195,9 +196,12 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
         <div class="date-group">
           <div class="date-tab-row">
             <div class="date-tab">${day.tab}</div>
-            ${hasNext ? `<div class="next-tab">Next Fixture</div>` : ""}
+            <div class="date-flags">
+              ${hasNext ? `<div class="next-tab">Next Fixture</div>` : ""}
+              ${hasCancelled ? `<div class="cancelled-tab">Cancelled</div>` : ""}
+            </div>
           </div>
-          <div class="date-card${hasNext ? " has-next" : ""}">${rows}</div>
+          <div class="date-card${hasNext ? " has-next" : ""}${hasCancelled ? " has-cancelled" : ""}">${rows}</div>
         </div>`;
     }).join("");
     return `<div class="month-block"><div class="month-header">${month.label}</div>${cards}</div>`;
@@ -503,8 +507,15 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       border-radius: 8px 8px 0 0;
     }
     body.light .date-tab { color: #fff; }
+    .date-flags { display: flex; gap: 6px; align-items: flex-end; }
     .next-tab {
       display: inline-block; background: #cc0000; color: #fff;
+      font-size: 0.68rem; font-weight: 900; letter-spacing: 1.5px;
+      text-transform: uppercase; padding: 8px 18px;
+      border-radius: 8px 8px 0 0; font-style: italic;
+    }
+    .cancelled-tab {
+      display: inline-block; background: #b45309; color: #fff;
       font-size: 0.68rem; font-weight: 900; letter-spacing: 1.5px;
       text-transform: uppercase; padding: 8px 18px;
       border-radius: 8px 8px 0 0; font-style: italic;
@@ -515,6 +526,9 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       overflow: hidden;
     }
     .date-card.has-next { border-radius: 0 0 10px 10px; }
+    /* Cancelled-but-shown fixtures: warm amber highlight so they stand out */
+    .date-card.has-cancelled { border-color: #b45309; }
+    body.light .date-card.has-cancelled { background: #fffbf5; }
 
     /* Fixture row: home | centre | away */
     .fx {
@@ -524,7 +538,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     }
     .fx:last-child { border-bottom: none; }
     .fx-next { box-shadow: inset 4px 0 0 #cc0000; }
-    .fx-cancelled { opacity: 0.55; }
+    .fx-cancelled { opacity: 0.7; box-shadow: inset 4px 0 0 #b45309; }
 
     .fx-team {
       font-size: 1rem; font-weight: 900; text-transform: uppercase;
@@ -607,7 +621,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .form-d { background: #b8860b; }
     .form-l { background: #aa2222; }
     .pill-next { color: #cc0000; }
-    .pill-cancelled { color: var(--text-4); }
+    .pill-cancelled { color: #b45309; }
     .fx-time { font-size: 1.5rem; font-weight: 900; letter-spacing: 1px; }
     .fx-venue { font-size: 0.75rem; color: var(--text-3); margin-top: 3px; }
     .fx-comp { font-size: 0.68rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }

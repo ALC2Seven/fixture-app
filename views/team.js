@@ -427,9 +427,17 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
     /* Hero — clean solid band, no photo */
     .hero {
+      position: relative; overflow: hidden;
       background: linear-gradient(160deg, #131a30, #0d1322);
       padding: 28px 20px 24px; border-bottom: 3px solid #cc0000; text-align: center;
     }
+    /* Ghosted club crest watermark behind the hero content */
+    .hero-watermark {
+      position: absolute; inset: 0; margin: auto;
+      width: 360px; height: 360px; object-fit: contain;
+      opacity: 0.07; pointer-events: none; z-index: 0;
+    }
+    .hero-logo, .hero h1, .hero p, .hero-actions { position: relative; z-index: 1; }
     .hero-logo {
       width: 56px; height: 56px; object-fit: contain;
       background: rgba(255,255,255,0.92); border-radius: 12px; padding: 5px;
@@ -767,6 +775,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   </div>` : ""}
 
   <div class="hero">
+    ${team.logo_mime ? `
+    <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt="" aria-hidden="true" class="hero-watermark">` : ""}
     ${team.logo_mime ? `
     <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt="${team.name} logo" class="hero-logo">` : ""}
     <h1>${team.name} <span>Fixtures</span></h1>

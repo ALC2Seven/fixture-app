@@ -92,21 +92,21 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
 
     return `
     <tr style="${rowStyle}">
-      <td style="text-align:center">${canAct(f) ? `<input type="checkbox" class="bulk-cb" value="${f.uid}" onchange="updateBulkBar()" style="width:auto;cursor:pointer;accent-color:var(--red)">` : ""}</td>
-      <td>${fmtDate(f.start_time)} ${statusBadge}</td>
+      <td class="cell-check" data-label="Select" style="text-align:center">${canAct(f) ? `<input type="checkbox" class="bulk-cb" value="${f.uid}" onchange="updateBulkBar()" style="width:auto;cursor:pointer;accent-color:var(--red)">` : ""}</td>
+      <td data-label="When">${fmtDate(f.start_time)} ${statusBadge}</td>
       ${isEvent ? `
-      <td colspan="3"><strong>${f.summary}</strong></td>
+      <td colspan="3" class="cell-title"><strong>${f.summary}</strong></td>
       ` : `
-      <td><strong>${f.home_team || f.summary}</strong></td>
-      <td style="color:var(--red);font-weight:900">VS</td>
-      <td><strong>${f.away_team || ""}</strong></td>
+      <td data-label="Home"><strong>${f.home_team || f.summary}</strong></td>
+      <td class="cell-vs" style="color:var(--red);font-weight:900">VS</td>
+      <td data-label="Away"><strong>${f.away_team || ""}</strong></td>
       `}
-      ${hasSquads ? `<td style="color:#60a5fa;font-size:0.78rem;font-weight:700">${f.squad_name || '<span style="color:var(--text-5)">Club</span>'}</td>` : ""}
-      <td style="color:#888">${f.location || "TBC"}</td>
-      <td>${typeBadge}</td>
-      <td>${isEvent ? "" : (isActuallyHome ? outlineBadge('#4ade80', 'Home') : outlineBadge('var(--text-3)', 'Away'))}</td>
-      <td>${availCell}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">
+      ${hasSquads ? `<td data-label="Squad" style="color:#60a5fa;font-size:0.78rem;font-weight:700">${f.squad_name || '<span style="color:var(--text-5)">Club</span>'}</td>` : ""}
+      <td data-label="Venue" style="color:#888">${f.location || "TBC"}</td>
+      <td data-label="Type">${typeBadge}</td>
+      <td class="cell-ha" data-label="H/A">${isEvent ? "" : (isActuallyHome ? outlineBadge('#4ade80', 'Home') : outlineBadge('var(--text-3)', 'Away'))}</td>
+      <td data-label="Availability">${availCell}</td>
+      <td class="cell-actions" style="display:flex;gap:6px;flex-wrap:wrap">
         ${!canAct(f) ? '<span style="color:var(--text-5);font-size:0.75rem">View only</span>' : !cancelled ? `
           ${!isEvent ? `
           <a href="/dashboard/lineup/${f.uid}" class="btn btn-secondary btn-sm">Line-up</a>` : ""}
@@ -159,7 +159,17 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
         <div style="margin-top:7px">${chipRow([{ t: plural(pastFixtures, "fixture"), c: "#5c9aff" }, { t: plural(pastEvents, "event"), c: "#b794f6" }])}</div>
       </div>
       <div class="stat"><div class="stat-value">${subscribers.length}</div><div class="stat-label">Subscribers</div></div>
-      <div class="stat"><div class="stat-value" style="text-transform:capitalize">${team.tier}</div><div class="stat-label">Plan</div></div>
+      <div class="stat" style="display:flex;flex-direction:column">
+        <div class="stat-value" style="text-transform:capitalize">${team.tier}</div>
+        <div class="stat-label">Plan</div>
+        <div style="margin-top:auto;padding-top:10px">
+          ${team.tier === 'free'
+            ? `<a href="/pricing" class="btn btn-primary btn-sm">Upgrade Plan</a>`
+            : team.tier === 'standard'
+            ? `<a href="/pricing" class="btn btn-primary btn-sm">Upgrade to Pro</a>`
+            : `<a href="/pricing" class="btn btn-secondary btn-sm">View Plans</a>`}
+        </div>
+      </div>
     </div>
 
     <!-- Add Fixture Modal -->
@@ -322,7 +332,7 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
         </div>
       </div>
       ${fixtures.length ? `
-      <table>
+      <table class="fixtures">
         <thead>
           <tr>
             <th style="width:28px;text-align:center"><input type="checkbox" id="bulk-all" onchange="toggleAllBulk(this)" title="Select all" style="width:auto;cursor:pointer;accent-color:var(--red)"></th>
@@ -347,31 +357,6 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
           <button type="button" onclick="openModal('add-event-modal')" class="btn btn-secondary">+ Add an event</button>
         </div>
       </div>`}
-    </div>
-
-    <!-- Plan Management -->
-    <div class="card">
-      <div class="card-title">Your Plan</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
-        <div>
-          <div style="font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:2px">${team.tier}</div>
-          <div style="color:#666;font-size:0.82rem;margin-top:4px">
-            ${team.tier === 'free'
-              ? 'Public fixtures page only. Upgrade to Standard to unlock calendar feeds and email notifications.'
-              : team.tier === 'standard'
-              ? 'Live calendar feed + email notifications included.'
-              : 'Full Pro access — all features included.'}
-          </div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${team.tier === 'free'
-            ? `<a href="/pricing" class="btn btn-primary">Upgrade Plan</a>`
-            : team.tier === 'standard'
-            ? `<a href="/pricing" class="btn btn-primary">Upgrade to Pro</a>
-               <a href="/pricing" class="btn btn-secondary">View Plans</a>`
-            : `<a href="/pricing" class="btn btn-secondary">View Plans</a>`}
-        </div>
-      </div>
     </div>
 
     <!-- Reschedule Modal -->

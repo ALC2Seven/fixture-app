@@ -165,9 +165,42 @@ function layout(title, content, user) {
       .stat { min-width: calc(50% - 5px); padding: 12px 14px; }
       .stat-value { font-size: 1.4rem; }
       .page-header h1 { font-size: 1.15rem; }
+      .page-header { gap: 10px; }
+      .page-header > div:last-child { width: 100%; }
+      .page-header > div:last-child .btn { flex: 1; justify-content: center; }
       .form-row { gap: 10px; }
       .form-group { min-width: 100%; }
       td, th { padding: 9px 8px; }
+
+      /* Fixtures table → stacked cards on mobile (keeps all the same buttons) */
+      .card { overflow-x: visible; }
+      table.fixtures { min-width: 0; display: block; }
+      table.fixtures thead { display: none; }
+      table.fixtures tbody { display: block; }
+      table.fixtures tr {
+        display: block; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 12px; padding: 12px 14px 8px; margin-bottom: 12px; position: relative;
+      }
+      table.fixtures tr:hover td { background: none; }
+      table.fixtures td {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px;
+        border: none; padding: 5px 0; text-align: right;
+      }
+      table.fixtures td::before {
+        content: attr(data-label); text-align: left; flex-shrink: 0;
+        font-size: 0.62rem; letter-spacing: 1px; text-transform: uppercase;
+        color: var(--text-5); font-weight: 700;
+      }
+      table.fixtures td:not([data-label])::before { content: ""; display: none; }
+      table.fixtures .cell-title { font-size: 1rem; }
+      table.fixtures .cell-vs, table.fixtures .cell-ha { display: none; }
+      table.fixtures td[data-label="Home"], table.fixtures td[data-label="Away"] { font-size: 0.95rem; }
+      table.fixtures .cell-check:empty { display: none; }
+      table.fixtures .cell-actions {
+        flex-wrap: wrap; justify-content: flex-start; gap: 6px;
+        margin-top: 8px; padding-top: 10px; border-top: 1px dashed var(--border);
+      }
+      table.fixtures .cell-actions .btn { flex: 1; justify-content: center; min-width: 90px; }
     }
   </style>
 </head>

@@ -181,6 +181,15 @@ async function initDb() {
       ADD COLUMN IF NOT EXISTS squad_id INTEGER REFERENCES squads(id) ON DELETE SET NULL;
   `);
 
+  // Subscribers can follow fixtures only, or fixtures + events (training/meeting/
+  // social/duty). Existing subscribers keep everything (column added as true);
+  // new subscribers default to fixtures only, the fan-facing default.
+  await pool.query(`
+    ALTER TABLE subscribers
+      ADD COLUMN IF NOT EXISTS include_events BOOLEAN DEFAULT true;
+    ALTER TABLE subscribers ALTER COLUMN include_events SET DEFAULT false;
+  `);
+
   // Family members (children/players) a guardian fan account responds for
   await pool.query(`
     CREATE TABLE IF NOT EXISTS family_members (

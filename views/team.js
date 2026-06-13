@@ -373,6 +373,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   // Oldest → newest so past games flow chronologically into the upcoming list
   const past     = visible.filter(f => new Date(f.start_time) <  now);
   const nextIndex = upcoming.length > 0 ? 0 : -1;
+  // Does this club run any non-fixture events? Drives the fixtures/events subscribe choice.
+  const hasEvents = fixtures.some(f => f.event_kind && f.event_kind !== "fixture");
 
   const isPaid = team.tier === "standard" || team.tier === "pro";
   const webcalUrl = `webcal://${calendarUrl.replace(/^https?:\/\//, "")}`;
@@ -687,6 +689,27 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     .modal p { color: var(--text-3); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.5; }
     .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .modal-actions .btn { flex: 1; justify-content: center; }
+    /* Subscribe options modal */
+    .sub-section-label {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--text-4); margin: 0 0 8px;
+    }
+    .sub-choice { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+    .sub-opt {
+      display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px;
+      transition: border-color 0.15s;
+    }
+    .sub-opt:hover { border-color: var(--text-4); }
+    .sub-opt input { width: auto; margin-top: 3px; accent-color: #cc0000; flex-shrink: 0; }
+    .sub-opt:has(input:checked) { border-color: #cc0000; }
+    .sub-opt-name { font-weight: 700; font-size: 0.88rem; display: block; }
+    .sub-opt-sub { font-size: 0.76rem; color: var(--text-3); display: block; margin-top: 2px; line-height: 1.4; }
+    .sub-select {
+      width: 100%; background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px;
+      font-size: 0.85rem; font-family: inherit;
+    }
 
     /* Calendar chooser */
     .cal-option {
@@ -697,6 +720,11 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       font-family: inherit; font-size: inherit; text-align: left;
     }
     .cal-option:hover { border-color: #cc0000; }
+    .cal-events-toggle {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+      font-size: 0.82rem; color: var(--text-2); cursor: pointer; user-select: none;
+    }
+    .cal-events-toggle input { width: auto; accent-color: #cc0000; cursor: pointer; }
     .cal-option-icon { font-size: 1.3rem; flex-shrink: 0; }
     .cal-option-name { font-weight: 700; font-size: 0.9rem; }
     .cal-option-sub { font-size: 0.74rem; color: var(--text-3); margin-top: 1px; }
@@ -787,14 +815,12 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
           return `<button onclick="openCalModal()" class="btn btn-primary">📅 Add to Calendar</button>
                   <a href="/my-teams" class="btn btn-outline">Manage Subscriptions</a>`;
         } else if (fanUser) {
-          return `<form method="POST" action="/${team.slug}/subscribe" style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center">
-                    ${squads.length ? `
-                    <select name="squadId" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:0.8rem;font-family:inherit">
-                      <option value="">Whole club</option>
-                      ${squads.map(s => `<option value="${s.id}">${s.name} only</option>`).join("")}
-                    </select>` : ""}
-                    <button type="submit" class="btn btn-primary">📅 Subscribe for Updates</button>
-                  </form>`;
+          // Anything to choose (squad and/or events)? Open a modal; otherwise one-tap subscribe.
+          return (hasEvents || squads.length)
+            ? `<button onclick="document.getElementById('subscribe-options-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>`
+            : `<form method="POST" action="/${team.slug}/subscribe" style="display:inline">
+                 <button type="submit" class="btn btn-primary">📅 Subscribe for Updates</button>
+               </form>`;
         } else {
           return `<button onclick="document.getElementById('subscribe-modal').classList.add('open')" class="btn btn-primary">📅 Subscribe for Updates</button>`;
         }
@@ -873,27 +899,71 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     </div>
   </div>` : ""}
 
+  <!-- Subscribe options modal (logged-in fan, not yet subscribed) -->
+  ${isPaid && fanUser && !isSubscribed && (hasEvents || squads.length) ? `
+  <div id="subscribe-options-modal" class="modal-overlay">
+    <div class="modal">
+      <h2>Subscribe for Updates</h2>
+      <p>Choose what you'd like to follow for ${team.name}.</p>
+      <form method="POST" action="/${team.slug}/subscribe">
+        ${hasEvents ? `
+        <div class="sub-section-label">What to follow</div>
+        <div class="sub-choice">
+          <label class="sub-opt">
+            <input type="radio" name="includeEvents" value="" checked>
+            <span>
+              <span class="sub-opt-name">Fixtures only</span>
+              <span class="sub-opt-sub">Match fixtures — kick-offs, reschedules and cancellations.</span>
+            </span>
+          </label>
+          <label class="sub-opt">
+            <input type="radio" name="includeEvents" value="1">
+            <span>
+              <span class="sub-opt-name">Fixtures + training & events</span>
+              <span class="sub-opt-sub">Everything above plus training, meetings, socials and duties.</span>
+            </span>
+          </label>
+        </div>` : ""}
+        ${squads.length ? `
+        <div class="sub-section-label">Which squad</div>
+        <select name="squadId" class="sub-select">
+          <option value="">Whole club</option>
+          ${squads.map(s => `<option value="${s.id}">${s.name} only</option>`).join("")}
+        </select>` : ""}
+        <div class="modal-actions" style="margin-top:22px">
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('subscribe-options-modal').classList.remove('open')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>` : ""}
+
   <!-- Calendar chooser modal -->
   ${isPaid ? `
   <div id="cal-modal" class="modal-overlay">
     <div class="modal">
       <h2>Add to Your Calendar</h2>
       <p>Pick your calendar app — fixtures and training stay up to date automatically, including reschedules and cancellations.</p>
-      <a href="${webcalUrl}" class="cal-option">
+      ${hasEvents ? `
+      <label class="cal-events-toggle">
+        <input type="checkbox" id="cal-events" onchange="updateCalUrls()">
+        <span>Include training & events <span style="color:var(--text-4)">(otherwise fixtures only)</span></span>
+      </label>` : ""}
+      <a href="${webcalUrl}" id="cal-apple" class="cal-option">
         <span class="cal-option-icon">🍎</span>
         <span>
           <span class="cal-option-name">Apple Calendar</span>
           <span class="cal-option-sub" style="display:block">iPhone, iPad & Mac — opens instantly</span>
         </span>
       </a>
-      <a href="${googleCalUrl}" target="_blank" rel="noopener" class="cal-option">
+      <a href="${googleCalUrl}" id="cal-google" target="_blank" rel="noopener" class="cal-option">
         <span class="cal-option-icon">📆</span>
         <span>
           <span class="cal-option-name">Google Calendar</span>
           <span class="cal-option-sub" style="display:block">Opens Google Calendar to confirm the subscription</span>
         </span>
       </a>
-      <a href="${outlookCalUrl}" target="_blank" rel="noopener" class="cal-option">
+      <a href="${outlookCalUrl}" id="cal-outlook" target="_blank" rel="noopener" class="cal-option">
         <span class="cal-option-icon">📧</span>
         <span>
           <span class="cal-option-name">Outlook</span>
@@ -912,6 +982,30 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   </div>` : ""}
 
   <script>
+    const CAL_BASE = ${JSON.stringify(calendarUrl)};
+    const CAL_NAME = ${JSON.stringify(team.name + " Fixtures")};
+    const HAS_EVENTS = ${hasEvents};
+
+    // Rebuild the calendar links/copy field for fixtures-only vs everything.
+    // Default is fixtures only; ticking the toggle includes training & events.
+    function updateCalUrls() {
+      if (!HAS_EVENTS) return;
+      const cb = document.getElementById('cal-events');
+      const includeEvents = cb ? cb.checked : false;
+      const ics = includeEvents ? CAL_BASE : CAL_BASE + '?content=fixtures';
+      const webcal = 'webcal://' + ics.replace(/^https?:\\/\\//, '');
+      const apple = document.getElementById('cal-apple');
+      const google = document.getElementById('cal-google');
+      const outlook = document.getElementById('cal-outlook');
+      const url = document.getElementById('cal-url');
+      if (apple)  apple.href = webcal;
+      if (google) google.href = 'https://calendar.google.com/calendar/r?cid=' + encodeURIComponent(webcal);
+      if (outlook) outlook.href = 'https://outlook.live.com/calendar/0/addfromweb?url=' + encodeURIComponent(ics) + '&name=' + encodeURIComponent(CAL_NAME);
+      if (url) url.value = ics;
+    }
+    // Apply the fixtures-only default as soon as the page loads
+    updateCalUrls();
+
     function openCalModal() {
       document.getElementById('cal-modal').classList.add('open');
     }
@@ -1008,9 +1102,11 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     // Apply the default 'All' filter on load so events start hidden when tabs exist
     if (document.getElementById('tab-bar')) applyFilters();
 
-    // Close modal on backdrop click
+    // Close modals on backdrop click
     const modal = document.getElementById('subscribe-modal');
     if (modal) modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+    const subOptModal = document.getElementById('subscribe-options-modal');
+    if (subOptModal) subOptModal.addEventListener('click', e => { if (e.target === subOptModal) subOptModal.classList.remove('open'); });
   </script>
 
 </body>

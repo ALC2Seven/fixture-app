@@ -3,9 +3,12 @@ const { fanLayout } = require("./layout");
 function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
   familyMembers = familyMembers || [];
   const rows = subscriptions.length ? subscriptions.map(s => {
-    const squadSuffix = s.squad_id ? `?squad=${s.squad_id}` : "";
-    const icsUrl     = `https://${s.calendar_host}/calendar/${s.team_slug}.ics${squadSuffix}`;
-    const webcalUrl  = `webcal://${s.calendar_host}/calendar/${s.team_slug}.ics${squadSuffix}`;
+    const params = [];
+    if (s.squad_id) params.push(`squad=${s.squad_id}`);
+    if (!s.include_events) params.push("content=fixtures");
+    const suffix = params.length ? `?${params.join("&")}` : "";
+    const icsUrl     = `https://${s.calendar_host}/calendar/${s.team_slug}.ics${suffix}`;
+    const webcalUrl  = `webcal://${s.calendar_host}/calendar/${s.team_slug}.ics${suffix}`;
     const googleUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
     const outlookUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(icsUrl)}&name=${encodeURIComponent(s.team_name + (s.squad_name ? " " + s.squad_name : "") + " Fixtures")}`;
     return `
@@ -17,7 +20,10 @@ function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
             style="width:34px;height:34px;object-fit:contain;border-radius:8px;background:#fff;border:1px solid var(--border);padding:2px">` : ""}
           <div>
             <div style="font-weight:900;font-size:0.95rem;text-transform:uppercase;letter-spacing:1px">${s.team_name}${s.squad_name ? ` <span style="color:#2563eb;font-size:0.78rem">· ${s.squad_name}</span>` : ""}</div>
-            <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}</div>
+            <div style="font-size:0.75rem;color:var(--text-4);margin-top:3px">
+              Subscribed ${new Date(s.created_at).toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" })}
+              · <span style="color:${s.include_events ? '#2563eb' : 'var(--text-3)'};font-weight:700">${s.include_events ? 'Fixtures + events' : 'Fixtures only'}</span>
+            </div>
           </div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -33,6 +39,11 @@ function fanDashboardPage(fanUser, subscriptions, flash, familyMembers) {
         <a href="${webcalUrl}" class="btn btn-secondary btn-sm">🍎 Apple</a>
         <a href="${googleUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">📆 Google</a>
         <a href="${outlookUrl}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm">📧 Outlook</a>
+        <form method="POST" action="/fan/subscription/events" style="display:inline;margin-left:auto">
+          <input type="hidden" name="teamId" value="${s.team_id}">
+          <input type="hidden" name="includeEvents" value="${s.include_events ? '' : '1'}">
+          <button class="btn btn-secondary btn-sm" title="Changes what your emails and calendar include">${s.include_events ? '⊖ Fixtures only' : '⊕ Add training & events'}</button>
+        </form>
       </div>
     </div>
   `}).join("") : `<p style="color:var(--text-4);font-size:0.85rem;padding:20px 0">You haven't subscribed to any teams yet. Visit a team's fixture page to subscribe.</p>`;

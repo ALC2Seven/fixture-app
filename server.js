@@ -89,17 +89,26 @@ const fmt = iso => new Date(iso).toUTCString().replace(" GMT", " UTC");
 
 // squadId optional: whole-club followers always included; squad followers
 // only get emails for their squad (and club-wide events).
-async function getSubscriberEmails(teamId, squadId) {
-  const { rows } = squadId
-    ? await pool.query(
-        "SELECT email FROM subscribers WHERE team_id = $1 AND (squad_id IS NULL OR squad_id = $2)",
-        [teamId, squadId])
-    : await pool.query("SELECT email FROM subscribers WHERE team_id = $1", [teamId]);
+// A training/meeting/social/duty item rather than an actual game fixture
+const isEventItem = f => !!(f.event_kind && f.event_kind !== "fixture");
+
+// Subscriber emails for a squad (+ club-wide). When the item being notified is
+// an event (not a fixture), only those who opted into events are included.
+async function getSubscriberEmails(teamId, squadId, requireEvents = false) {
+  const clauses = ["team_id = $1"];
+  const params = [teamId];
+  if (squadId) {
+    params.push(squadId);
+    clauses.push(`(squad_id IS NULL OR squad_id = $${params.length})`);
+  }
+  if (requireEvents) clauses.push("include_events = true");
+  const { rows } = await pool.query(
+    `SELECT email FROM subscribers WHERE ${clauses.join(" AND ")}`, params);
   return rows.map(r => r.email);
 }
 
 async function sendCancellationEmails(team, fixture, cancelType) {
-  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
   const shown = cancelType === "shown";
   await resend.emails.send({
@@ -119,7 +128,7 @@ async function sendCancellationEmails(team, fixture, cancelType) {
 }
 
 async function sendVenueChangeEmails(team, fixture, oldVenue) {
-  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
   await resend.emails.send({
     from: "Fixture Updates <onboarding@resend.dev>",
@@ -149,7 +158,7 @@ async function sendVenueChangeEmails(team, fixture, oldVenue) {
 }
 
 async function sendRescheduleEmails(team, fixture, oldStart) {
-  const emails = await getSubscriberEmails(team.id, fixture.squad_id);
+  const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
 
   await resend.emails.send({
@@ -201,7 +210,7 @@ function rsvpButtonsHtml(uid, email) {
 
 // Sends a reminder for one event to every subscriber (individually, so RSVP links are personal)
 async function sendEventReminder(team, event) {
-  const emails = await getSubscriberEmails(team.id, event.squad_id);
+  const emails = await getSubscriberEmails(team.id, event.squad_id, isEventItem(event));
   if (!emails.length) return 0;
 
   const kindLabel = (event.event_kind && event.event_kind !== "fixture")
@@ -355,16 +364,20 @@ app.get("/calendar/:slug.ics", async (req, res) => {
     if (sq.length) squadName = sq[0].name;
   }
 
+  // ?content=fixtures drops training/meeting/social/duty events from the feed
+  const fixturesOnly = req.query.content === "fixtures";
+  const eventFilter = fixturesOnly ? " AND (f.event_kind IS NULL OR f.event_kind = 'fixture')" : "";
+
   const { rows: fixtures } = (squadId && squadName)
     ? await pool.query(
         `SELECT f.*, sq.name AS squad_name FROM fixtures f
          LEFT JOIN squads sq ON sq.id = f.squad_id
-         WHERE f.team_id = $1 AND (f.squad_id = $2 OR f.squad_id IS NULL)
+         WHERE f.team_id = $1 AND (f.squad_id = $2 OR f.squad_id IS NULL)${eventFilter}
          ORDER BY f.start_time ASC`, [team.id, squadId])
     : await pool.query(
         `SELECT f.*, sq.name AS squad_name FROM fixtures f
          LEFT JOIN squads sq ON sq.id = f.squad_id
-         WHERE f.team_id = $1 ORDER BY f.start_time ASC`, [team.id]);
+         WHERE f.team_id = $1${eventFilter} ORDER BY f.start_time ASC`, [team.id]);
 
   const calendar = ical({
     name: squadName ? `${team.name} — ${squadName}` : `${team.name} Fixtures`,
@@ -1874,6 +1887,20 @@ app.post("/fan/unsubscribe", async (req, res) => {
   res.redirect("/my-teams");
 });
 
+// Switch a subscription between fixtures-only and fixtures + events
+app.post("/fan/subscription/events", async (req, res) => {
+  if (!req.fanUser) return res.redirect("/fan/login");
+  const includeEvents = req.body.includeEvents === "1" || req.body.includeEvents === "true";
+  await pool.query(
+    "UPDATE subscribers SET include_events = $1 WHERE fan_user_id = $2 AND team_id = $3",
+    [includeEvents, req.fanUser.id, req.body.teamId]
+  );
+  req.session.fanFlash = { type: "success", msg: includeEvents
+    ? "You'll now get training & events too."
+    : "You'll now get fixtures only." };
+  res.redirect("/my-teams");
+});
+
 // Family members — guardians add the children/players they respond for
 app.post("/fan/family/add", async (req, res) => {
   if (!req.fanUser) return res.redirect("/fan/login");
@@ -1917,15 +1944,21 @@ app.post("/:slug/subscribe", async (req, res) => {
 
   const fanEmail = req.fanUser.email;
   const sqId = await resolveSquadId(team.id, req.body.squadId);
+  const includeEvents = req.body.includeEvents === "1" || req.body.includeEvents === "true";
   let flash;
   try {
     await pool.query(
-      "INSERT INTO subscribers (team_id, email, fan_user_id, squad_id) VALUES ($1, $2, $3, $4)",
-      [team.id, fanEmail, req.fanUser.id, sqId]
+      "INSERT INTO subscribers (team_id, email, fan_user_id, squad_id, include_events) VALUES ($1, $2, $3, $4, $5)",
+      [team.id, fanEmail, req.fanUser.id, sqId, includeEvents]
     );
     flash = { type: "success", msg: `subscribed` };
   } catch (e) {
     if (e.code === "23505") {
+      // Already subscribed — apply any changed squad / events preference instead
+      await pool.query(
+        "UPDATE subscribers SET squad_id = $1, include_events = $2 WHERE team_id = $3 AND email = $4",
+        [sqId, includeEvents, team.id, fanEmail]
+      );
       flash = { type: "info", msg: "already" };
     } else {
       flash = { type: "error", msg: "Something went wrong — please try again." };

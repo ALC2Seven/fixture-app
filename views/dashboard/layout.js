@@ -117,6 +117,9 @@ function layout(title, content, user) {
     .badge-standard { background: #143620; color: #4ade80; }
     .badge-pro      { background: #14203a; color: #60a5fa; }
 
+    /* Overlay modals (Add Fixture / Add Event / Import) */
+    .dash-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+
     /* Alert */
     .alert { padding: 12px 16px; font-size: 0.85rem; margin-bottom: 16px; border-radius: 10px; }
     .alert-error   { background: rgba(224,40,40,0.1); border: 1px solid rgba(224,40,40,0.35); color: #fca5a5; }

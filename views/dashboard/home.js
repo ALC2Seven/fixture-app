@@ -133,13 +133,18 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
   const content = `
     ${flash ? `<div class="alert alert-${flash.type}">${flash.msg}</div>` : ""}
 
-    <div class="page-header" style="display:flex;align-items:center;gap:14px">
+    <div class="page-header" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
       ${team.logo_mime ? `
       <img src="/logo/${team.slug}?v=${new Date(team.logo_updated_at || Date.now()).getTime()}" alt=""
         style="width:46px;height:46px;object-fit:contain;border-radius:10px;background:var(--row-hover);border:1px solid var(--border);padding:4px">` : ""}
       <div>
         <h1>${team.name}</h1>
         <p>Manage your fixtures and subscribers.</p>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" onclick="openModal('add-fixture-modal')" class="btn btn-primary">+ Add Fixture</button>
+        <button type="button" onclick="openModal('add-event-modal')" class="btn btn-secondary">+ Add Event</button>
+        <button type="button" onclick="openModal('import-modal')" class="btn btn-secondary">⬆ Import</button>
       </div>
     </div>
 
@@ -157,48 +162,11 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
       <div class="stat"><div class="stat-value" style="text-transform:capitalize">${team.tier}</div><div class="stat-label">Plan</div></div>
     </div>
 
-    <!-- Plan Management -->
-    <div class="card">
-      <div class="card-title">Your Plan</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
-        <div>
-          <div style="font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:2px">${team.tier}</div>
-          <div style="color:#666;font-size:0.82rem;margin-top:4px">
-            ${team.tier === 'free'
-              ? 'Public fixtures page only. Upgrade to Standard to unlock calendar feeds and email notifications.'
-              : team.tier === 'standard'
-              ? 'Live calendar feed + email notifications included.'
-              : 'Full Pro access — all features included.'}
-          </div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          ${team.tier === 'free'
-            ? `<a href="/pricing" class="btn btn-primary">Upgrade Plan</a>`
-            : team.tier === 'standard'
-            ? `<a href="/pricing" class="btn btn-primary">Upgrade to Pro</a>
-               <a href="/pricing" class="btn btn-secondary">View Plans</a>`
-            : `<a href="/pricing" class="btn btn-secondary">View Plans</a>`}
-        </div>
-      </div>
-    </div>
-
-    <!-- Import Fixtures -->
-    <div class="card">
-      <div class="card-title">Import Fixtures from File</div>
-      <p style="color:#888;font-size:0.82rem;margin-bottom:14px">Upload an Excel or CSV file to add multiple fixtures at once. Download the template to get started.</p>
-      <form method="POST" action="/dashboard/fixtures/upload" enctype="multipart/form-data"
-            style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <a href="/dashboard/fixtures/template" class="btn btn-secondary">⬇ Download Template</a>
-        <input type="file" name="file" accept=".xlsx,.csv" required
-          style="background:var(--input-bg);border:1px solid var(--border2);color:var(--text-3);padding:8px 12px;font-size:0.82rem;cursor:pointer;flex:1;min-width:160px;border-radius:8px">
-        <button type="submit" class="btn btn-primary">Upload & Import</button>
-      </form>
-    </div>
-
-    <!-- Add Fixture -->
-    <div class="card">
-      <div class="card-title">Add Fixture</div>
-      <form method="POST" action="/dashboard/fixtures/add">
+    <!-- Add Fixture Modal -->
+    <div id="add-fixture-modal" class="dash-modal" style="display:none" onclick="if(event.target===this)closeModal('add-fixture-modal')">
+      <div class="card" style="width:600px;max-width:92vw;max-height:90vh;overflow-y:auto">
+        <div class="card-title">Add Fixture</div>
+        <form method="POST" action="/dashboard/fixtures/add">
         <div class="form-row">
           <div class="form-group">
             <label>Home Team</label>
@@ -250,14 +218,19 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             <input type="text" name="description" placeholder="e.g. Premier League — Matchday 3">
           </div>
         </div>
-        <button type="submit" class="btn btn-primary">Add Fixture</button>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button type="submit" class="btn btn-primary">Add Fixture</button>
+          <button type="button" onclick="closeModal('add-fixture-modal')" class="btn btn-secondary">Cancel</button>
+        </div>
       </form>
+      </div>
     </div>
 
-    <!-- Add Training / Event -->
-    <div class="card">
-      <div class="card-title">Add Training / Event</div>
-      <form method="POST" action="/dashboard/events/add">
+    <!-- Add Training / Event Modal -->
+    <div id="add-event-modal" class="dash-modal" style="display:none" onclick="if(event.target===this)closeModal('add-event-modal')">
+      <div class="card" style="width:600px;max-width:92vw;max-height:90vh;overflow-y:auto">
+        <div class="card-title">Add Training / Event</div>
+        <form method="POST" action="/dashboard/events/add">
         <div class="form-row">
           <div class="form-group">
             <label>Event Type</label>
@@ -313,8 +286,28 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
             <input type="date" name="repeatUntil">
           </div>
         </div>
-        <button type="submit" class="btn btn-primary">Add Event</button>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button type="submit" class="btn btn-primary">Add Event</button>
+          <button type="button" onclick="closeModal('add-event-modal')" class="btn btn-secondary">Cancel</button>
+        </div>
       </form>
+      </div>
+    </div>
+
+    <!-- Import Fixtures Modal -->
+    <div id="import-modal" class="dash-modal" style="display:none" onclick="if(event.target===this)closeModal('import-modal')">
+      <div class="card" style="width:520px;max-width:92vw">
+        <div class="card-title">Import Fixtures from File</div>
+        <p style="color:#888;font-size:0.82rem;margin-bottom:14px">Upload an Excel or CSV file to add multiple fixtures at once. Download the template to get started.</p>
+        <form method="POST" action="/dashboard/fixtures/upload" enctype="multipart/form-data"
+              style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <a href="/dashboard/fixtures/template" class="btn btn-secondary">⬇ Download Template</a>
+          <input type="file" name="file" accept=".xlsx,.csv" required
+            style="background:var(--input-bg);border:1px solid var(--border2);color:var(--text-3);padding:8px 12px;font-size:0.82rem;cursor:pointer;flex:1;min-width:160px;border-radius:8px">
+          <button type="submit" class="btn btn-primary">Upload & Import</button>
+        </form>
+        <button type="button" onclick="closeModal('import-modal')" class="btn btn-secondary btn-sm" style="margin-top:16px">Close</button>
+      </div>
     </div>
 
     <!-- Fixtures Table -->
@@ -346,7 +339,39 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
           </tr>
         </thead>
         <tbody>${fixtureRows}</tbody>
-      </table>` : `<p style="color:#555;font-size:0.85rem">No fixtures yet — add one above.</p>`}
+      </table>` : `
+      <div style="text-align:center;padding:32px 16px;color:var(--text-4)">
+        <p style="font-size:0.9rem;margin-bottom:16px">No fixtures or events yet.</p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+          <button type="button" onclick="openModal('add-fixture-modal')" class="btn btn-primary">+ Add your first fixture</button>
+          <button type="button" onclick="openModal('add-event-modal')" class="btn btn-secondary">+ Add an event</button>
+        </div>
+      </div>`}
+    </div>
+
+    <!-- Plan Management -->
+    <div class="card">
+      <div class="card-title">Your Plan</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div>
+          <div style="font-size:1.1rem;font-weight:900;text-transform:uppercase;letter-spacing:2px">${team.tier}</div>
+          <div style="color:#666;font-size:0.82rem;margin-top:4px">
+            ${team.tier === 'free'
+              ? 'Public fixtures page only. Upgrade to Standard to unlock calendar feeds and email notifications.'
+              : team.tier === 'standard'
+              ? 'Live calendar feed + email notifications included.'
+              : 'Full Pro access — all features included.'}
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          ${team.tier === 'free'
+            ? `<a href="/pricing" class="btn btn-primary">Upgrade Plan</a>`
+            : team.tier === 'standard'
+            ? `<a href="/pricing" class="btn btn-primary">Upgrade to Pro</a>
+               <a href="/pricing" class="btn btn-secondary">View Plans</a>`
+            : `<a href="/pricing" class="btn btn-secondary">View Plans</a>`}
+        </div>
+      </div>
     </div>
 
     <!-- Reschedule Modal -->
@@ -394,6 +419,10 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
     </div>
 
     <script>
+      // Generic show/hide for the dashboard's overlay modals
+      function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+      function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
       const HOME_VENUE = ${JSON.stringify(homeVenue || '')};
 
       // Auto-fill venue on Add Fixture form when switching to Home

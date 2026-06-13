@@ -20,6 +20,21 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
   const now = new Date();
   const upcoming = fixtures.filter(f => new Date(f.start_time) >= now);
   const past     = fixtures.filter(f => new Date(f.start_time) <  now);
+  // Split each bucket into actual games vs events (training/meeting/social/duty),
+  // and the remaining games into home vs away (a frequently asked question).
+  const isEvt = f => f.event_kind && f.event_kind !== "fixture";
+  const upFixtures   = upcoming.filter(f => !isEvt(f)).length;
+  const upEvents     = upcoming.filter(isEvt).length;
+  const upHome       = upcoming.filter(f => !isEvt(f) && f.is_home).length;
+  const upAway       = upcoming.filter(f => !isEvt(f) && !f.is_home).length;
+  const pastFixtures = past.filter(f => !isEvt(f)).length;
+  const pastEvents   = past.filter(isEvt).length;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  // One row of "·"-separated coloured chips
+  const chipRow = parts =>
+    `<div style="display:flex;gap:7px;flex-wrap:wrap;font-size:0.72rem;font-weight:700">${
+      parts.map((p, i) => `${i ? '<span style="color:var(--text-5)">·</span>' : ""}<span style="color:${p.c}">${p.t}</span>`).join("")
+    }</div>`;
 
   // Outline badges — coloured border + matching text, no fill
   const outlineBadge = (color, text) =>
@@ -129,8 +144,15 @@ function homePage(user, team, fixtures, subscribers, flash, homeVenue, availabil
     </div>
 
     <div class="stats">
-      <div class="stat"><div class="stat-value">${upcoming.length}</div><div class="stat-label">Upcoming</div></div>
-      <div class="stat"><div class="stat-value">${past.length}</div><div class="stat-label">Past</div></div>
+      <div class="stat"><div class="stat-value">${upcoming.length}</div><div class="stat-label">Upcoming</div>
+        <div style="margin-top:7px;display:flex;flex-direction:column;gap:3px">
+          ${chipRow([{ t: plural(upFixtures, "fixture"), c: "#5c9aff" }, { t: plural(upEvents, "event"), c: "#b794f6" }])}
+          ${chipRow([{ t: `${upHome} home`, c: "#4ade80" }, { t: `${upAway} away`, c: "var(--text-3)" }])}
+        </div>
+      </div>
+      <div class="stat"><div class="stat-value">${past.length}</div><div class="stat-label">Past</div>
+        <div style="margin-top:7px">${chipRow([{ t: plural(pastFixtures, "fixture"), c: "#5c9aff" }, { t: plural(pastEvents, "event"), c: "#b794f6" }])}</div>
+      </div>
       <div class="stat"><div class="stat-value">${subscribers.length}</div><div class="stat-label">Subscribers</div></div>
       <div class="stat"><div class="stat-value" style="text-transform:capitalize">${team.tier}</div><div class="stat-label">Plan</div></div>
     </div>

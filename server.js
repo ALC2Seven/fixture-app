@@ -108,6 +108,7 @@ async function getSubscriberEmails(teamId, squadId, requireEvents = false) {
 }
 
 async function sendCancellationEmails(team, fixture, cancelType) {
+  if (!(team.tier === "standard" || team.tier === "pro")) return 0;
   const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
   const shown = cancelType === "shown";
@@ -128,6 +129,7 @@ async function sendCancellationEmails(team, fixture, cancelType) {
 }
 
 async function sendVenueChangeEmails(team, fixture, oldVenue) {
+  if (!(team.tier === "standard" || team.tier === "pro")) return 0;
   const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
   await resend.emails.send({
@@ -158,6 +160,7 @@ async function sendVenueChangeEmails(team, fixture, oldVenue) {
 }
 
 async function sendRescheduleEmails(team, fixture, oldStart) {
+  if (!(team.tier === "standard" || team.tier === "pro")) return 0;
   const emails = await getSubscriberEmails(team.id, fixture.squad_id, isEventItem(fixture));
   if (!emails.length) return 0;
 
@@ -210,6 +213,7 @@ function rsvpButtonsHtml(uid, email) {
 
 // Sends a reminder for one event to every subscriber (individually, so RSVP links are personal)
 async function sendEventReminder(team, event) {
+  if (!(team.tier === "standard" || team.tier === "pro")) return 0;
   const emails = await getSubscriberEmails(team.id, event.squad_id, isEventItem(event));
   if (!emails.length) return 0;
 
@@ -253,7 +257,7 @@ async function runReminderSweep() {
   if (!process.env.RESEND_API_KEY) return;
   try {
     const { rows: due } = await pool.query(
-      `SELECT f.*, t.name AS team_name, t.slug AS team_slug, t.id AS t_id
+      `SELECT f.*, t.name AS team_name, t.slug AS team_slug, t.id AS t_id, t.tier AS team_tier
        FROM fixtures f JOIN teams t ON t.id = f.team_id
        WHERE f.status = 'active'
          AND f.reminder_sent_at IS NULL
@@ -262,7 +266,7 @@ async function runReminderSweep() {
          AND t.tier IN ('standard', 'pro')`
     );
     for (const event of due) {
-      const team = { id: event.t_id, name: event.team_name, slug: event.team_slug };
+      const team = { id: event.t_id, name: event.team_name, slug: event.team_slug, tier: event.team_tier };
       const sent = await sendEventReminder(team, event);
       await pool.query("UPDATE fixtures SET reminder_sent_at = NOW() WHERE id = $1", [event.id]);
       if (sent) console.log(`[reminders] ${event.summary}: ${sent} reminder(s) sent`);
@@ -1635,6 +1639,11 @@ app.post("/dashboard/settings/lineups", requireLogin, requireRole("owner"), asyn
 
 // Squads CRUD (owner)
 app.post("/dashboard/settings/squads/add", requireLogin, requireRole("owner"), async (req, res) => {
+  const { rows: teams } = await pool.query("SELECT tier FROM teams WHERE id = $1", [req.user.team_id]);
+  if (teams[0].tier !== "pro") {
+    req.session.flash = { type: "error", msg: "Multiple squads are available on the Pro plan." };
+    return res.redirect("/dashboard/settings");
+  }
   const name = (req.body.name || "").trim();
   if (!name) {
     req.session.flash = { type: "error", msg: "Squad name is required." };
@@ -1740,13 +1749,30 @@ app.post("/dashboard/subscribers/remove", requireLogin, requireRole("owner", "ma
 app.get("/dashboard/feed", requireLogin, async (req, res) => {
   const { rows: teams } = await pool.query("SELECT * FROM teams WHERE id = $1", [req.user.team_id]);
   const team = teams[0];
+  const { layout } = require("./views/dashboard/layout");
+
+  if (!(team.tier === "standard" || team.tier === "pro")) {
+    const content = `
+      <div class="page-header"><h1>Calendar Feed</h1><p>Share these links with your fans.</p></div>
+      <div class="card">
+        <div class="card-title">Live Calendar Feed</div>
+        <p style="color:var(--text-3);font-size:0.88rem;margin-bottom:16px">
+          Let fans subscribe once and get every reschedule, cancellation and new fixture
+          straight into their Google, Apple or Outlook calendar — automatically.
+          Available on the <strong>Standard</strong> plan.
+        </p>
+        <a href="/pricing" class="btn btn-primary">Upgrade to Standard</a>
+      </div>
+    `;
+    return res.send(layout("Calendar Feed", content, req.user));
+  }
+
   const { rows: squads } = await pool.query(
     "SELECT * FROM squads WHERE team_id = $1 ORDER BY name", [team.id]);
   const feedUrl = `https://${req.headers.host}/calendar/${team.slug}.ics`;
   const webcalUrl = feedUrl.replace("https://", "webcal://");
   const googleUrl  = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(webcalUrl)}`;
   const outlookUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(feedUrl)}&name=${encodeURIComponent(team.name + " Fixtures")}`;
-  const { layout } = require("./views/dashboard/layout");
   const content = `
     <div class="page-header"><h1>Calendar Feed</h1><p>Share these links with your fans.</p></div>
     <div class="card">

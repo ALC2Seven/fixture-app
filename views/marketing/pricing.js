@@ -157,15 +157,15 @@ function pricingPage() {
         <ul class="tier-features">
           <li>Public fixtures &amp; events page</li>
           <li>Fixture type filters &amp; colour coding</li>
+          <li>Supporter RSVP &amp; availability tracking</li>
           <li class="na">Calendar subscribe button</li>
         </ul>
       </div>
       <div class="feature-group">
         <div class="feature-group-label">Communication</div>
         <ul class="tier-features">
-          <li class="na">Live calendar feed</li>
-          <li class="na">Email alerts &amp; reminders</li>
-          <li class="na">One-tap RSVP from emails</li>
+          <li>Build a subscriber list</li>
+          <li class="na">Automatic calendar sync &amp; email alerts</li>
         </ul>
       </div>
       <div class="tier-cta">
@@ -190,7 +190,6 @@ function pricingPage() {
         <div class="feature-group-label">Public Page</div>
         <ul class="tier-features">
           <li>Calendar subscribe button</li>
-          <li>Supporter one-tap availability</li>
         </ul>
       </div>
       <div class="feature-group">
@@ -200,7 +199,6 @@ function pricingPage() {
           <li>Email alerts for reschedules, cancellations &amp; venue changes</li>
           <li>Automatic event reminders</li>
           <li>One-tap RSVP from emails — no login</li>
-          <li>Subscriber management</li>
         </ul>
       </div>
       <div class="tier-cta">
@@ -216,6 +214,14 @@ function pricingPage() {
       <div class="tier-desc">For clubs and organisations that want the full experience.</div>
       <div class="feature-group">
         <div class="feature-group-label">Everything in Standard</div>
+        <ul class="tier-features">
+          <li>Unlimited squads &amp; age groups</li>
+          <li>Per-squad calendar feeds</li>
+          <li>Delegate coaches to specific squads</li>
+        </ul>
+      </div>
+      <div class="feature-group">
+        <div class="feature-group-label">Plus</div>
         <ul class="tier-features">
           <li>Priority support</li>
           <li>Early access to new features</li>

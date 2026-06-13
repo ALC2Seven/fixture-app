@@ -83,6 +83,7 @@ function settingsPage(user, team, flash, squads) {
     <!-- Squads -->
     <div class="card">
       <div class="card-title">Squads</div>
+      ${team.tier === "pro" ? `
       <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">
         Run more than one team? Add squads (e.g. U10s, U12s, First Team) — fixtures can be assigned
         to a squad, supporters can follow just their squad, and each squad gets its own calendar feed.
@@ -106,6 +107,25 @@ function settingsPage(user, team, flash, squads) {
         </div>
         <button type="submit" class="btn btn-primary">Add Squad</button>
       </form>
+      ` : `
+      <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">
+        Run more than one team or age group? Squads — with their own fixtures, calendar feeds
+        and delegated coach access — are available on the <strong>Pro</strong> plan.
+      </p>
+      ${squads.length ? squads.map(sq => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--row-hover);border:1px solid var(--border);border-radius:10px;margin-bottom:8px">
+          <span><strong>${sq.name}</strong>
+            <span style="color:var(--text-4);font-size:0.75rem;margin-left:8px">${sq.fixture_count} fixture${sq.fixture_count === 1 ? "" : "s"}</span>
+          </span>
+          <form method="POST" action="/dashboard/settings/squads/delete"
+                onsubmit="return confirm('Remove ${sq.name}? Its fixtures become club-wide and its followers will follow the whole club.')">
+            <input type="hidden" name="squadId" value="${sq.id}">
+            <button class="btn btn-sm" style="background:rgba(224,40,40,0.12);color:#f87171;border:1px solid rgba(224,40,40,0.3)">Remove</button>
+          </form>
+        </div>
+      `).join("") : ""}
+      <a href="/pricing" class="btn btn-primary">Upgrade to Pro</a>
+      `}
     </div>
 
     <!-- Line-up visibility -->

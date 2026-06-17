@@ -82,6 +82,22 @@ function pricingPage() {
     .tier-features li.na { color: var(--text-4); }
     .tier-features li.na::before { content: "–"; color: var(--text-4); }
 
+    .billing-toggle {
+      display: flex; justify-content: center; gap: 4px; margin: 0 auto 36px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+      padding: 4px; width: fit-content;
+    }
+    .toggle-btn {
+      border: none; background: transparent; cursor: pointer; font-family: inherit;
+      font-size: 0.84rem; font-weight: 700; color: var(--text-3); padding: 9px 20px;
+      border-radius: 9px; transition: all 0.15s; display: flex; align-items: center; gap: 8px;
+    }
+    .toggle-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 2px 8px rgba(16,24,40,0.08); }
+    .save-badge {
+      background: rgba(224,40,40,0.12); color: var(--red); font-size: 0.66rem; font-weight: 800;
+      padding: 2px 7px; border-radius: 8px; letter-spacing: 0.5px;
+    }
+
     .tier-cta { margin-top: auto; padding-top: 26px; }
     .btn {
       display: block; width: 100%; padding: 14px; text-align: center;
@@ -135,13 +151,17 @@ function pricingPage() {
 </div>
 
 <div class="section" style="padding-top:20px">
+  <div class="billing-toggle">
+    <button type="button" class="toggle-btn active" data-period="monthly" onclick="setBilling('monthly')">Monthly</button>
+    <button type="button" class="toggle-btn" data-period="yearly" onclick="setBilling('yearly')">Yearly <span class="save-badge">2 months free</span></button>
+  </div>
   <div class="tiers">
 
     <!-- Free -->
     <div class="tier">
       <div class="tier-name">Free</div>
-      <div class="tier-price"><span class="currency">£</span>0 <span class="period">/ month</span></div>
-      <div class="tier-note">No credit card needed</div>
+      <div class="tier-price"><span class="currency">£</span><span class="dyn-amount" data-monthly="0" data-yearly="0">0</span> <span class="period dyn-period" data-monthly="/ month" data-yearly="/ year">/ month</span></div>
+      <div class="tier-note dyn-note" data-monthly="No credit card needed" data-yearly="No credit card needed">No credit card needed</div>
       <div class="tier-desc">Publish your season and manage fixtures, training and events at no cost.</div>
       <div class="feature-group">
         <div class="feature-group-label">Fixtures & Events</div>
@@ -177,8 +197,8 @@ function pricingPage() {
     <div class="tier featured">
       <div class="tier-badge">Most popular</div>
       <div class="tier-name">Standard</div>
-      <div class="tier-price">TBC <span class="period">/ month</span></div>
-      <div class="tier-note" style="color:var(--red)">Pricing coming soon</div>
+      <div class="tier-price"><span class="currency">£</span><span class="dyn-amount" data-monthly="4.99" data-yearly="49">4.99</span> <span class="period dyn-period" data-monthly="/ month" data-yearly="/ year">/ month</span></div>
+      <div class="tier-note dyn-note" data-monthly="or £49/year — save ~2 months" data-yearly="≈ £4.08/month — 2 months free">or £49/year — save ~2 months</div>
       <div class="tier-desc">The full communication loop — calendars, alerts, reminders and availability.</div>
       <div class="feature-group">
         <div class="feature-group-label">Fixtures & Events</div>
@@ -202,15 +222,15 @@ function pricingPage() {
         </ul>
       </div>
       <div class="tier-cta">
-        <a href="/signup" class="btn btn-primary">Sign up — get notified</a>
+        <a href="/signup" class="btn btn-primary">Start free, upgrade later</a>
       </div>
     </div>
 
     <!-- Pro -->
     <div class="tier">
       <div class="tier-name">Pro</div>
-      <div class="tier-price">TBC <span class="period">/ month</span></div>
-      <div class="tier-note" style="color:var(--red)">Pricing coming soon</div>
+      <div class="tier-price"><span class="currency">£</span><span class="dyn-amount" data-monthly="9.99" data-yearly="99">9.99</span> <span class="period dyn-period" data-monthly="/ month" data-yearly="/ year">/ month</span></div>
+      <div class="tier-note dyn-note" data-monthly="or £99/year — save ~2 months" data-yearly="≈ £8.25/month — 2 months free">or £99/year — save ~2 months</div>
       <div class="tier-desc">For clubs and organisations that want the full experience.</div>
       <div class="feature-group">
         <div class="feature-group-label">Everything in Standard</div>
@@ -229,7 +249,7 @@ function pricingPage() {
         </ul>
       </div>
       <div class="tier-cta">
-        <a href="/signup" class="btn btn-ghost">Sign up — get notified</a>
+        <a href="/signup" class="btn btn-ghost">Start free, upgrade later</a>
       </div>
     </div>
 
@@ -253,8 +273,8 @@ function pricingPage() {
       <p>Supporters tap Going, Maybe or Can't on the fixture page or straight from the reminder email — no login needed from email. You see the headcount for every event in your dashboard.</p>
     </div>
     <div class="faq-item">
-      <h4>When will Standard and Pro pricing be confirmed?</h4>
-      <p>We're finalising pricing now. Sign up free today and we'll notify you as soon as paid plans go live.</p>
+      <h4>Is there a discount for paying yearly?</h4>
+      <p>Yes — pay annually and get roughly two months free. Standard is £49/year (vs £59.88 paid monthly) and Pro is £99/year (vs £119.88 paid monthly).</p>
     </div>
     <div class="faq-item">
       <h4>Can I switch plans later?</h4>
@@ -273,6 +293,15 @@ function pricingPage() {
   </div>
   <p>© ${new Date().getFullYear()} FixtureApp. Built for grassroots sport.</p>
 </footer>
+
+<script>
+  function setBilling(period) {
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+    document.querySelectorAll('.dyn-amount, .dyn-period, .dyn-note').forEach(el => {
+      el.textContent = el.dataset[period];
+    });
+  }
+</script>
 
 </body>
 </html>`;

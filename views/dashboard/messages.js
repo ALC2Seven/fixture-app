@@ -42,7 +42,7 @@ function messagesPage(user, team, announcements, subscriberCount, flash) {
       <div class="card-title">Send an Announcement</div>
       <p style="color:var(--text-3);font-size:0.88rem;margin-bottom:16px">
         Announcements let you email all your subscribers at once — club news, kit days,
-        fundraising, season updates. Available on the <strong>Standard</strong> plan.
+        fundraising, season updates. Available on the <strong>Standard</strong> plan (£4.99/month).
       </p>
       <a href="/pricing" class="btn btn-primary">Upgrade to Standard</a>
     </div>

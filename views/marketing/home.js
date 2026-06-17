@@ -421,10 +421,10 @@ ${flash ? `<div class="flash ${flash.type === "error" ? "error" : ""}">${flash.m
       <ul class="tier-features">
         <li>Public fixtures & events page</li>
         <li>Unlimited fixtures and training</li>
-        <li>Weekly repeating events</li>
-        <li>CSV / Excel season import</li>
-        <li class="na">Calendar subscription feed</li>
-        <li class="na">Email alerts & reminders</li>
+        <li>Supporter RSVP & availability</li>
+        <li>Build a subscriber list</li>
+        <li class="na">Live calendar feed</li>
+        <li class="na">Automatic email alerts</li>
       </ul>
       <a href="/signup" class="btn btn-ghost" style="width:100%">Get started</a>
     </div>
@@ -432,7 +432,7 @@ ${flash ? `<div class="flash ${flash.type === "error" ? "error" : ""}">${flash.m
     <div class="tier featured">
       <div class="tier-badge">Most popular</div>
       <div class="tier-name">Standard</div>
-      <div class="tier-price">TBC <span>/ month</span></div>
+      <div class="tier-price">£4.99 <span>/ month</span></div>
       <div class="tier-desc">The full communication loop for your supporters.</div>
       <ul class="tier-features">
         <li>Everything in Free</li>
@@ -446,13 +446,13 @@ ${flash ? `<div class="flash ${flash.type === "error" ? "error" : ""}">${flash.m
 
     <div class="tier">
       <div class="tier-name">Pro</div>
-      <div class="tier-price">TBC <span>/ month</span></div>
+      <div class="tier-price">£9.99 <span>/ month</span></div>
       <div class="tier-desc">For clubs and organisations wanting the full package.</div>
       <ul class="tier-features">
         <li>Everything in Standard</li>
+        <li>Unlimited squads & age groups</li>
+        <li>Per-squad calendar feeds</li>
         <li>Priority support</li>
-        <li>Early access to new features</li>
-        <li>More coming soon</li>
       </ul>
       <a href="/pricing" class="btn btn-ghost" style="width:100%">View pricing</a>
     </div>

@@ -110,7 +110,7 @@ function settingsPage(user, team, flash, squads) {
       ` : `
       <p style="color:var(--text-4);font-size:0.78rem;margin-bottom:16px">
         Run more than one team or age group? Squads — with their own fixtures, calendar feeds
-        and delegated coach access — are available on the <strong>Pro</strong> plan.
+        and delegated coach access — are available on the <strong>Pro</strong> plan (£9.99/month).
       </p>
       ${squads.length ? squads.map(sq => `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:var(--row-hover);border:1px solid var(--border);border-radius:10px;margin-bottom:8px">

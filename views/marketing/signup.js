@@ -162,7 +162,8 @@ function signupPage(error, prefill) {
         <div class="plan-note">
           <span>🚀</span>
           <div>Starting on the <strong>Free plan</strong> — your public fixtures page is live immediately.
-          Upgrade to Standard or Pro when pricing is announced to unlock the calendar feed and email notifications.</div>
+          Upgrade to <strong>Standard</strong> (£4.99/month) for a live calendar feed and automatic email alerts,
+          or <strong>Pro</strong> (£9.99/month) to manage multiple squads or age groups.</div>
         </div>
 
         <button type="submit" class="btn-submit">Create Free Account →</button>

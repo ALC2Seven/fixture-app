@@ -1759,7 +1759,7 @@ app.get("/dashboard/feed", requireLogin, async (req, res) => {
         <p style="color:var(--text-3);font-size:0.88rem;margin-bottom:16px">
           Let fans subscribe once and get every reschedule, cancellation and new fixture
           straight into their Google, Apple or Outlook calendar — automatically.
-          Available on the <strong>Standard</strong> plan.
+          Available on the <strong>Standard</strong> plan (£4.99/month).
         </p>
         <a href="/pricing" class="btn btn-primary">Upgrade to Standard</a>
       </div>

@@ -193,7 +193,7 @@ function fixtureCards(fixtures, markNextIndex, theme, ctx) {
         .map(({ fixture, index }) => fixtureRow(fixture, index === markNextIndex, theme, ctx))
         .join("");
       return `
-        <div class="date-group">
+        <div class="date-group" id="day-${day.key}">
           <div class="date-tab-row">
             <div class="date-tab">${day.tab}</div>
             <div class="date-flags">
@@ -364,6 +364,104 @@ function buildStatsPanel(fixtures) {
     </div>`;
 }
 
+// Month-grid calendar view of every fixture/event. Renders one block per month
+// across the season's span (always including the current month), shown one at a
+// time via prev/next nav. Each day's items become colour-coded pills; clicking a
+// day jumps to it in the list view. Returns html + month metadata for the script.
+function buildCalendar(items, theme) {
+  const empty = { html: "", monthsJson: "[]", todayMonth: "\"\"" };
+  if (!items || !items.length) return empty;
+
+  const themeConfig = TYPE_CONFIG[theme] || TYPE_CONFIG.dark;
+  const dotColor = (k) => k === "league"
+    ? "#cc0000"
+    : ((theme === "light" ? themeConfig[k]?.badge?.bg : themeConfig[k]?.badge?.color) || "#cc0000");
+
+  const label = (f) => {
+    const isEvent = f.event_kind && f.event_kind !== "fixture";
+    if (isEvent) return f.summary || "Event";
+    const opp = (f.is_home ? f.away_team : f.home_team) || f.summary || "Fixture";
+    return `${opp} (${f.is_home ? "H" : "A"})`;
+  };
+
+  // Map ISO day -> items (chronological within the day)
+  const byDay = {};
+  items.forEach(f => {
+    const k = new Date(f.start_time).toISOString().slice(0, 10);
+    (byDay[k] = byDay[k] || []).push(f);
+  });
+  Object.values(byDay).forEach(arr => arr.sort((a, b) => new Date(a.start_time) - new Date(b.start_time)));
+
+  // Month range: span of fixtures, always including the current month
+  const times = items.map(f => new Date(f.start_time).getTime());
+  const min = new Date(Math.min(...times));
+  const max = new Date(Math.max(...times));
+  const now = new Date();
+  let startK = min.getUTCFullYear() * 12 + min.getUTCMonth();
+  let endK   = max.getUTCFullYear() * 12 + max.getUTCMonth();
+  const curK = now.getUTCFullYear() * 12 + now.getUTCMonth();
+  if (curK < startK) startK = curK;
+  if (curK > endK) endK = curK;
+
+  const todayKey = now.toISOString().slice(0, 10);
+  const todayMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
+  const monthsMeta = [];
+  const blocks = [];
+  for (let k = startK; k <= endK; k++) {
+    const y = Math.floor(k / 12), m = k % 12;
+    const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+    monthsMeta.push({ key, label: new Date(Date.UTC(y, m, 1)).toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }) });
+
+    const offset = (new Date(Date.UTC(y, m, 1)).getUTCDay() + 6) % 7; // Monday-start
+    const daysInMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+
+    let cells = "";
+    for (let i = 0; i < offset; i++) cells += `<div class="cal-cell cal-blank"></div>`;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayKey = `${key}-${String(d).padStart(2, "0")}`;
+      const dayItems = byDay[dayKey] || [];
+      const isToday = dayKey === todayKey;
+      const shown = dayItems.slice(0, 3).map(f => {
+        const tk = typeKey(f);
+        return `<div class="cal-pill" data-type="${tk}" data-squad="${f.squad_id || 0}"><span class="cal-dot" style="background:${dotColor(tk)}"></span><span class="cal-pill-t">${label(f)}</span></div>`;
+      }).join("");
+      const more = dayItems.length > 3 ? `<div class="cal-more">+${dayItems.length - 3} more</div>` : "";
+      const click = dayItems.length ? ` onclick="goToDay('${dayKey}')" role="button" tabindex="0"` : "";
+      cells += `<div class="cal-cell ${isToday ? "cal-today" : ""} ${dayItems.length ? "cal-has" : ""}"${click}>
+        <div class="cal-daynum">${d}</div>
+        <div class="cal-pills">${shown}${more}</div>
+      </div>`;
+    }
+    blocks.push(`<div class="cal-month" data-month="${key}" style="display:none"><div class="cal-grid">${cells}</div></div>`);
+  }
+
+  // Legend — only the item types actually present
+  const present = [...new Set(items.map(typeKey))];
+  const order = ["league", "cup", "tournament", "festival", "training", "meeting", "social", "duty"];
+  const legend = order.filter(k => present.includes(k)).map(k => {
+    const lbl = (themeConfig[k] || themeConfig.league).label;
+    return `<span><i style="background:${dotColor(k)}"></i>${lbl}</span>`;
+  }).join("");
+
+  const html = `
+  <div id="calendar-view" style="display:none">
+    <div class="cal-nav">
+      <button type="button" class="cal-nav-btn cal-prev" onclick="calPrev()" aria-label="Previous month">‹</button>
+      <span class="cal-label" id="cal-label"></span>
+      <button type="button" class="cal-nav-btn cal-next" onclick="calNext()" aria-label="Next month">›</button>
+      <button type="button" class="cal-today-btn" onclick="calToday()">Today</button>
+    </div>
+    <div class="cal-weekdays">
+      <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+    </div>
+    ${blocks.join("")}
+    ${legend ? `<div class="cal-legend">${legend}</div>` : ""}
+  </div>`;
+
+  return { html, monthsJson: JSON.stringify(monthsMeta), todayMonth: JSON.stringify(todayMonth) };
+}
+
 function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsvpMap, goingCounts, familyMembers, squads, lineupMap) {
   squads = squads || [];
   const ctx = { fanUser, slug: team.slug, rsvpMap: rsvpMap || {}, goingCounts: goingCounts || {}, familyMembers: familyMembers || [], lineupMap: lineupMap || {} };
@@ -382,6 +480,9 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
   const outlookCalUrl = `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(calendarUrl)}&name=${encodeURIComponent(team.name + " Fixtures")}`;
   // Light is the default; only an explicit dark choice renders dark
   const theme = team.theme === "dark" ? "dark" : "light";
+
+  // Month-grid calendar view (free for everyone) — same data, different lens
+  const calendar = buildCalendar(visible, theme);
 
   const justSubscribed = flash && flash.msg === "subscribed";
   const alreadySubscribed = flash && flash.msg === "already";
@@ -770,6 +871,56 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     body.light .team-flash-inner.info  { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
     body.light .team-flash-inner.error { background: #fff0f0; border-color: #cc0000; color: #aa0000; }
 
+    /* View toggle */
+    .view-toggle { display: flex; justify-content: center; gap: 6px; margin: 14px 0 0; }
+    .view-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--text-3);
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; border-radius: 20px; padding: 7px 18px; transition: all 0.15s;
+    }
+    .view-btn:hover { color: var(--text); border-color: var(--text-4); }
+    .view-btn.active { color: #fff; background: #cc0000; border-color: #cc0000; }
+
+    /* Calendar view */
+    .cal-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 18px 0 12px; }
+    .cal-nav-btn {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--text-2); font-size: 1.1rem; line-height: 1; cursor: pointer;
+    }
+    .cal-nav-btn:hover:not(:disabled) { border-color: var(--text-4); color: var(--text); }
+    .cal-nav-btn:disabled { opacity: 0.35; cursor: default; }
+    .cal-label {
+      font-size: 0.85rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase;
+      font-style: italic; color: var(--text); min-width: 160px; text-align: center;
+    }
+    .cal-today-btn {
+      margin-left: 6px; background: transparent; border: 1px solid #cc0000; color: #cc0000;
+      font-size: 0.64rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      border-radius: 20px; padding: 6px 14px; cursor: pointer;
+    }
+    .cal-today-btn:hover { background: #cc0000; color: #fff; }
+    .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+    .cal-weekdays span { text-align: center; color: var(--text-4); font-size: 0.6rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-cell {
+      min-height: 74px; border-radius: 8px; padding: 6px; overflow: hidden;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .cal-cell.cal-blank { background: transparent; border: none; }
+    .cal-has { cursor: pointer; }
+    .cal-has:hover { border-color: var(--text-4); }
+    .cal-today { border-color: #cc0000; box-shadow: inset 0 0 0 1px #cc0000; }
+    .cal-daynum { font-size: 0.7rem; font-weight: 800; text-align: right; color: var(--text-3); margin-bottom: 2px; }
+    .cal-today .cal-daynum { color: #cc0000; }
+    .cal-pill { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+    .cal-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .cal-pill-t { font-size: 0.62rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-more { font-size: 0.58rem; color: var(--text-4); font-weight: 700; margin-top: 3px; }
+    .cal-legend { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+    .cal-legend span { display: flex; align-items: center; gap: 5px; color: var(--text-3); font-size: 0.66rem; }
+    .cal-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .date-group.day-flash .date-card { box-shadow: 0 0 0 2px #cc0000; transition: box-shadow 0.2s; }
+
     @media (max-width: 640px) {
       .hero h1 { font-size: 1.6rem; letter-spacing: 2px; }
       .hero p { font-size: 0.75rem; }
@@ -788,6 +939,13 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
       .modal { padding: 24px 20px; }
       .subscribe-success { padding: 0 12px; }
       .tab-btn { padding: 6px 12px; font-size: 0.64rem; }
+      .cal-cell { min-height: 52px; padding: 4px; }
+      .cal-pills { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+      .cal-pill { margin-top: 2px; }
+      .cal-pill-t { display: none; }
+      .cal-dot { width: 7px; height: 7px; }
+      .cal-more { font-size: 0.52rem; }
+      .cal-label { min-width: 120px; font-size: 0.75rem; letter-spacing: 1px; }
     }
   </style>
 </head>
@@ -862,6 +1020,11 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
   <div class="section">
     <div class="section-title">Upcoming Fixtures</div>
+    ${visible.length ? `
+    <div class="view-toggle">
+      <button type="button" class="view-btn active" data-view="list" onclick="setView('list')">List</button>
+      <button type="button" class="view-btn" data-view="calendar" onclick="setView('calendar')">Calendar</button>
+    </div>` : ""}
     ${buildTabs(upcoming, getPlayedMatches(visible).length > 0)}
     <div id="fixtures-view">
       ${buildSquadTabs(upcoming, squads)}
@@ -876,6 +1039,7 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
         ${fixtureCards(upcoming, nextIndex, theme, ctx)}
       </div>
     </div>
+    ${calendar.html}
     ${buildStatsPanel(visible)}
   </div>
 
@@ -985,6 +1149,8 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     const CAL_BASE = ${JSON.stringify(calendarUrl)};
     const CAL_NAME = ${JSON.stringify(team.name + " Fixtures")};
     const HAS_EVENTS = ${hasEvents};
+    const CAL_MONTHS = ${calendar.monthsJson};
+    const TODAY_MONTH = ${calendar.todayMonth};
 
     // Rebuild the calendar links/copy field for fixtures-only vs everything.
     // Default is fixtures only; ticking the toggle includes training & events.
@@ -1101,6 +1267,61 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
 
     // Apply the default 'All' filter on load so events start hidden when tabs exist
     if (document.getElementById('tab-bar')) applyFilters();
+
+    // ---- List / Calendar view ----
+    let calIdx = Math.max(0, CAL_MONTHS.findIndex(m => m.key === TODAY_MONTH));
+
+    function calRender() {
+      if (!CAL_MONTHS.length) return;
+      const cur = CAL_MONTHS[calIdx];
+      document.querySelectorAll('#calendar-view .cal-month').forEach(el => {
+        el.style.display = el.dataset.month === cur.key ? '' : 'none';
+      });
+      const lbl = document.getElementById('cal-label');
+      if (lbl) lbl.textContent = cur.label;
+      const prev = document.querySelector('.cal-prev'), next = document.querySelector('.cal-next');
+      if (prev) prev.disabled = calIdx === 0;
+      if (next) next.disabled = calIdx === CAL_MONTHS.length - 1;
+    }
+    function calPrev() { if (calIdx > 0) { calIdx--; calRender(); } }
+    function calNext() { if (calIdx < CAL_MONTHS.length - 1) { calIdx++; calRender(); } }
+    function calToday() { const i = CAL_MONTHS.findIndex(m => m.key === TODAY_MONTH); if (i >= 0) { calIdx = i; calRender(); } }
+
+    function setView(v) {
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+      const list = document.getElementById('fixtures-view');
+      const cal = document.getElementById('calendar-view');
+      const stats = document.getElementById('stats-panel');
+      const tabBar = document.getElementById('tab-bar');
+      if (v === 'calendar') {
+        if (list) list.style.display = 'none';
+        if (stats) stats.style.display = 'none';
+        if (tabBar) tabBar.style.display = 'none';
+        if (cal) cal.style.display = '';
+        calRender();
+      } else {
+        if (cal) cal.style.display = 'none';
+        if (stats) stats.style.display = 'none';
+        if (tabBar) tabBar.style.display = '';
+        if (list) list.style.display = '';
+      }
+    }
+
+    // Clicking a calendar day jumps to that day in the list view
+    function goToDay(dayKey) {
+      setView('list');
+      if (document.getElementById('tab-bar')) filterTab('all');
+      const el = document.getElementById('day-' + dayKey);
+      if (!el) return;
+      const past = document.getElementById('past-fixtures');
+      if (past && past.contains(el) && past.style.display !== 'block') {
+        const btn = document.querySelector('.past-toggle');
+        if (btn) togglePast(btn);
+      }
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('day-flash');
+      setTimeout(() => el.classList.remove('day-flash'), 1600);
+    }
 
     // Close modals on backdrop click
     const modal = document.getElementById('subscribe-modal');

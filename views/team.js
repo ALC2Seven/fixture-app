@@ -1310,14 +1310,31 @@ function teamPage(team, fixtures, calendarUrl, flash, fanUser, isSubscribed, rsv
     // Clicking a calendar day jumps to that day in the list view
     function goToDay(dayKey) {
       setView('list');
-      if (document.getElementById('tab-bar')) filterTab('all');
       const el = document.getElementById('day-' + dayKey);
       if (!el) return;
+
+      // Pick a tab that shows this day's items. 'all' covers games but not
+      // events, so an events-only day needs the Events tab. (A mixed day is
+      // handled by the force-reveal below.)
+      const types = [...el.querySelectorAll('.fx')].map(r => r.dataset.type);
+      const hasGame  = types.some(t => TAB_GROUPS.all.includes(t));
+      const hasEvent = types.some(t => TAB_GROUPS.events.includes(t));
+      if (document.getElementById('tab-bar')) filterTab(hasEvent && !hasGame ? 'events' : 'all');
+
+      // Expand Past if the target day lives there
       const past = document.getElementById('past-fixtures');
       if (past && past.contains(el) && past.style.display !== 'block') {
         const btn = document.querySelector('.past-toggle');
         if (btn) togglePast(btn);
       }
+
+      // Force every row in this day visible regardless of the active filter,
+      // so mixed game+event days (and any squad filter) don't hide what was clicked.
+      el.querySelectorAll('.fx').forEach(r => { r.style.display = ''; });
+      el.style.display = '';
+      const block = el.closest('.month-block');
+      if (block) block.style.display = '';
+
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       el.classList.add('day-flash');
       setTimeout(() => el.classList.remove('day-flash'), 1600);
